@@ -1,0 +1,459 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BlockRoss</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;700&family=Pacifico&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Lora', serif;
+      text-align: center;
+      background: linear-gradient(to bottom, #d0e4f5, #ffffff);
+      margin: 0;
+      padding: 0;
+    }
+    h1 {
+      font-family: 'Pacifico', cursive;
+      font-size: 48px;
+      color: #2c3e50;
+      margin: 20px 0;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+    }
+    #info {
+      margin: 20px;
+      font-size: 18px;
+      font-weight: 400;
+      color: #333;
+    }
+    #main-canvas {
+      margin: 20px auto;
+    }
+    #previous-blocks {
+      margin: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+    .thumbnail {
+      cursor: pointer;
+      border: 1px solid #ccc;
+      padding: 5px;
+      background: white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .thumbnail:hover {
+      border-color: #333;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    #description {
+      margin: 20px auto;
+      max-width: 600px;
+      font-size: 16px;
+      font-weight: 400;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <h1>BlockRoss</h1>
+  <div id="info">Fetching blockchain data...</div>
+  <div id="main-canvas"></div>
+  <div id="previous-blocks"></div>
+  <div id="description">
+    BlockRoss, inspired by Bob Ross, creates surprising art from Bitcoin’s latest block data. Each block’s height and hash spark unique visuals in styles like Modern or Other-Worldly. Click thumbnails to explore past blocks’ art.
+  </div>
+  <script>
+    // Function to fetch latest block data from Mempool.space API
+    async function fetchBlockData() {
+      try {
+        const hashResponse = await fetch('https://mempool.space/api/blocks/tip/hash');
+        const blockHash = await hashResponse.text();
+        const heightResponse = await fetch('https://mempool.space/api/blocks/tip/height');
+        const blockHeight = await heightResponse.text();
+        return { blockHash, blockHeight };
+      } catch (error) {
+        console.error('Error fetching block data:', error);
+        return { blockHash: '0000000000000000000000000000000000000000000000000000000000abcdef', blockHeight: '123456' };
+      }
+    }
+
+    // Fetch only block height for polling
+    async function fetchBlockHeight() {
+      try {
+        const response = await fetch('https://mempool.space/api/blocks/tip/height');
+        return await response.text();
+      } catch (error) {
+        console.error('Error fetching block height:', error);
+        return null;
+      }
+    }
+
+    // Fetch previous blocks
+    async function fetchPreviousBlocks() {
+      try {
+        const response = await fetch('https://mempool.space/api/blocks');
+        const blocks = await response.json();
+        return blocks.slice(1, 6).map(block => ({
+          blockHash: block.id,
+          blockHeight: block.height.toString()
+        }));
+      } catch (error) {
+        console.error('Error fetching previous blocks:', error);
+        return [];
+      }
+    }
+
+    // Convert randomizer string to a numerical seed
+    function stringToSeed(str) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = (hash << 5) - hash + str.charCodeAt(i);
+        hash = hash & hash; // Convert to 32-bit integer
+      }
+      return Math.abs(hash);
+    }
+
+    // Create randomizer string and seed
+    function createRandomizer(hash, height) {
+      const lastSix = hash.slice(-6);
+      const randomizer = `${height}-${lastSix}`;
+      const seed = stringToSeed(randomizer);
+      return { randomizer, seed };
+    }
+
+    // Update info display
+    function updateInfo(hash, height, randomizer, style) {
+      const infoDiv = document.getElementById('info');
+      infoDiv.innerHTML = `Block Height: ${height}<br>Block Hash (Last 6): ${hash.slice(-6)}<br>Randomizer: ${randomizer}<br>Style: ${style}`;
+    }
+
+    // Global variable to track current block height
+    let currentBlockHeight = null;
+    let mainSketch = null;
+
+    // Fallback reload timer (6 minutes)
+    let fallbackTimer = null;
+    function setFallbackReload() {
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      fallbackTimer = setTimeout(() => {
+        location.reload();
+      }, 360000); // 6 minutes
+    }
+
+    // Poll for new block height
+    function startBlockPolling() {
+      setInterval(async () => {
+        const newHeight = await fetchBlockHeight();
+        if (newHeight && currentBlockHeight && newHeight !== currentBlockHeight) {
+          location.reload(); // Reload on new block
+        }
+      }, 30000); // Poll every 30 seconds
+    }
+
+    // p5.js main sketch
+    function mainSketchSetup(p) {
+      p.setup = function() {
+        const canvas = p.createCanvas(600, 600);
+        canvas.parent('main-canvas');
+        p.background(255);
+        fetchBlockData().then(({ blockHash, blockHeight }) => {
+          currentBlockHeight = blockHeight;
+          const { randomizer, seed } = createRandomizer(blockHash, blockHeight);
+          p.randomSeed(seed);
+          const styles = ['Modern', 'Classical', 'Realist', 'Natural', 'AI-Generated', 'Other-Worldly', 'Fractal', 'Surrealist', 'Cyberpunk', 'Expressionist'];
+          const styleIndex = Math.floor(p.random(0, styles.length));
+          const style = styles[styleIndex];
+          console.log(`Main sketch - Seed: ${seed}, Style: ${style}`);
+          updateInfo(blockHash, blockHeight, randomizer, style);
+          drawArt(p, blockHeight, style);
+          startBlockPolling();
+          setFallbackReload();
+          // Load previous blocks
+          loadPreviousBlocks();
+        });
+      };
+    }
+
+    // Function to draw art (shared for main and thumbnails)
+    function drawArt(p, blockHeight, style) {
+      const heightFactor = parseInt(blockHeight) % 1000 / 1000;
+      // Curated background color palette
+      const bgColors = [
+        [200, 220, 255], // Soft blue
+        [255, 245, 200], // Light cream
+        [220, 255, 220], // Pale green
+        [255, 200, 220], // Soft pink
+        [230, 230, 230]  // Light gray
+      ];
+      const bgColor = bgColors[Math.floor(p.random(0, bgColors.length))];
+      p.background(bgColor[0], bgColor[1], bgColor[2]);
+
+      if (style === 'Modern') {
+        drawModern(p, heightFactor);
+      } else if (style === 'Classical') {
+        drawClassical(p, heightFactor);
+      } else if (style === 'Realist') {
+        drawRealist(p, heightFactor);
+      } else if (style === 'Natural') {
+        drawNatural(p, heightFactor);
+      } else if (style === 'AI-Generated') {
+        drawAIGenerated(p, heightFactor);
+      } else if (style === 'Other-Worldly') {
+        drawOtherWorldly(p, heightFactor);
+      } else if (style === 'Fractal') {
+        drawFractal(p, heightFactor);
+      } else if (style === 'Surrealist') {
+        drawSurrealist(p, heightFactor);
+      } else if (style === 'Cyberpunk') {
+        drawCyberpunk(p, heightFactor);
+      } else if (style === 'Expressionist') {
+        drawExpressionist(p, heightFactor);
+      }
+    }
+
+    // Modern: Bold, minimalist shapes
+    function drawModern(p, heightFactor) {
+      const numShapes = 5 + Math.floor(heightFactor * 10);
+      for (let i = 0; i < numShapes; i++) {
+        p.fill(p.random(255), p.random(255), p.random(255));
+        p.noStroke();
+        const x = p.random(p.width);
+        const y = p.random(p.height);
+        const size = p.random(50, 200) * heightFactor;
+        if (p.random() > 0.5) {
+          p.rect(x, y, size, size);
+        } else {
+          p.ellipse(x, y, size, size);
+        }
+      }
+    }
+
+    // Classical: Ornate, symmetrical patterns
+    function drawClassical(p, heightFactor) {
+      const numArcs = 10 + Math.floor(heightFactor * 20);
+      p.strokeWeight(2);
+      for (let i = 0; i < numArcs; i++) {
+        p.stroke(p.random(100, 200), p.random(50, 150), 50, 150);
+        p.noFill();
+        const x = p.width / 2;
+        const y = p.height / 2;
+        const radius = p.random(50, 300) * heightFactor;
+        p.arc(x, y, radius, radius, p.random(p.TWO_PI), p.random(p.TWO_PI));
+      }
+    }
+
+    // Realist: Simplified landscape
+    function drawRealist(p, heightFactor) {
+      // Ground
+      p.fill(100, 150, 50);
+      p.rect(0, p.height * 0.6, p.width, p.height * 0.4);
+      // Trees
+      const numTrees = 5 + Math.floor(heightFactor * 10);
+      for (let i = 0; i < numTrees; i++) {
+        const x = p.random(p.width);
+        const y = p.random(p.height * 0.6, p.height * 0.8);
+        p.fill(139, 69, 19);
+        p.rect(x - 10, y, 20, p.height - yṇ);
+        p.fill(34, 139, 34);
+        p.ellipse(x, y - 20, 50, 50);
+      }
+    }
+
+    // Natural: Organic, flowing forms
+    function drawNatural(p, heightFactor) {
+      const numCurves = 10 + Math.floor(heightFactor * 20);
+      p.strokeWeight(3);
+      for (let i = 0; i < numCurves; i++) {
+        p.stroke(p.random(50, 150), p.random(100, 200), 50);
+        p.noFill();
+        p.beginShape();
+        p.curveVertex(p.random(p.width), p.random(p.height));
+        p.curveVertex(p.random(p.width), p.random(p.height));
+        p.curveVertex(p.random(p.width), p.random(p.height));
+        p.curveVertex(p.random(p.width), p.random(p.height));
+        p.endShape();
+      }
+    }
+
+    // AI-Generated: Glitchy, pixelated patterns
+    function drawAIGenerated(p, heightFactor) {
+      const numGlitches = 50 + Math.floor(heightFactor * 100);
+      for (let i = 0; i < numGlitches; i++) {
+        const x = p.random(p.width);
+        const y = p.random(p.height);
+        const size = p.random(5, 20);
+        p.fill(p.random(255), p.random(255), p.random(255), 200);
+        p.noStroke();
+        p.rect(x, y, size, size);
+        if (p.random() > 0.7) {
+          p.stroke(255, 0, 255);
+          p.line(x, y, x + p.random(-20, 20), y + p.random(-20, 20));
+        }
+      }
+    }
+
+    // Other-Worldly: Alien, bioluminescent shapes
+    function drawOtherWorldly(p, heightFactor) {
+      const numShapes = 10 + Math.floor(heightFactor * 20);
+      for (let i = 0; i < numShapes; i++) {
+        const x = p.random(p.width);
+        const y = p.random(p.height);
+        const size = p.random(30, 100) * heightFactor;
+        p.fill(p.random(0, 50), p.random(150, 255), p.random(150, 255), 150);
+        p.noStroke();
+        p.ellipse(x, y, size, size * p.random(0.5, 1.5));
+      }
+    }
+
+    // Fractal: Recursive patterns
+    function drawFractal(p, heightFactor) {
+      function drawBranch(x, y, len, angle, depth) {
+        if (depth === 0) return;
+        p.stroke(255, 255 / depth, 255 / depth);
+        p.strokeWeight(depth);
+        const x2 = x + len * p.cos(angle);
+        const y2 = y + len * p.sin(angle);
+        p.line(x, y, x2, y2);
+        drawBranch(x2, y2, len * 0.7, angle + p.random(-p.PI / 4, p.PI / 4), depth - 1);
+        drawBranch(x2, y2, len * 0.7, angle + p.random(-p.PI / 4, p.PI / 4), depth - 1);
+      }
+      drawBranch(p.width / 2, p.height, 100 * heightFactor, -p.PI / 2, 5);
+    }
+
+    // Surrealist: Dreamlike, distorted shapes
+    function drawSurrealist(p, heightFactor) {
+      const numShapes = 10 + Math.floor(heightFactor * 20);
+      for (let i = 0; i < numShapes; i++) {
+        const x = p.random(p.width);
+        const y = p.random(p.height);
+        const size = p.random(50, 150) * heightFactor;
+        p.fill(p.random(255), p.random(255), p.random(255), 100);
+        p.noStroke();
+        p.beginShape();
+        for (let j = 0; j < 6; j++) {
+          p.vertex(x + p.random(-size, size), y + p.random(-size, size));
+        }
+        p.endShape(p.CLOSE);
+      }
+    }
+
+    // Cyberpunk: Neon grids
+    function drawCyberpunk(p, heightFactor) {
+      const gridSize = 20 + Math.floor(heightFactor * 30);
+      for (let x = 0; x < p.width; x += gridSize) {
+        for (let y = 0; y < p.height; y += gridSize) {
+          p.stroke(p.random(0, 255), p.random(150, 255), 255, 150);
+          p.strokeWeight(1);
+          p.line(x, y, x + gridSize, y);
+          p.line(x, y, x, y + gridSize);
+          if (p.random() > 0.8) {
+            p.fill(255, 0, 255, 100);
+            p.noStroke();
+            p.ellipse(x, y, gridSize / 2);
+          }
+        }
+      }
+    }
+
+    // Expressionist: Jagged, emotional strokes
+    function drawExpressionist(p, heightFactor) {
+      const numStrokes = 20 + Math.floor(heightFactor * 30);
+      p.strokeWeight(5);
+      for (let i = 0; i < numStrokes; i++) {
+        const x1 = p.random(p.width);
+        const y1 = p.random(p.height);
+        const x2 = x1 + p.random(-50, 50);
+        const y2 = y1 + p.random(-50, 50);
+        p.stroke(p.random(255), p.random(255), p.random(255));
+        p.line(x1, y1, x2, y2);
+      }
+    }
+
+    // Load and display previous blocks
+    function loadPreviousBlocks() {
+      fetchPreviousBlocks().then(blocks => {
+        const prevDiv = document.getElementById('previous-blocks');
+        blocks.forEach(block => {
+          const { randomizer, seed } = createRandomizer(block.blockHash, block.blockHeight);
+          const container = document.createElement('div');
+          container.className = 'thumbnail';
+          container.title = `Block ${block.blockHeight}`;
+          prevDiv.appendChild(container);
+          new p5(p => {
+            p.setup = function() {
+              p.createCanvas(100, 100);
+              p.randomSeed(seed);
+              const styles = ['Modern', 'Classical', 'Realist', 'Natural', 'AI-Generated', 'Other-Worldly', 'Fractal', 'Surrealist', 'Cyberpunk', 'Expressionist'];
+              const styleIndex = Math.floor(p.random(0, styles.length));
+              const style = styles[styleIndex];
+              console.log(`Thumbnail for block ${block.blockHeight} - Seed: ${seed}, Style: ${style}`);
+              drawArt(p, block.blockHeight, style);
+              container.addEventListener('click', () => {
+                if (mainSketch) {
+                  mainSketch.remove();
+                }
+                mainSketch = new p5(p2 => {
+                  p2.setup = function() {
+                    const canvas = p2.createCanvas(600, 600);
+                    canvas.parent('main-canvas');
+                    p2.randomSeed(seed);
+                    const selectedStyleIndex = Math.floor(p2.random(0, styles.length));
+                    const selectedStyle = styles[selectedStyleIndex];
+                    console.log(`Main sketch (from thumbnail) - Seed: ${seed}, Style: ${selectedStyle}`);
+                    updateInfo(block.blockHash, block.blockHeight, randomizer, selectedStyle);
+                    drawArt(p2, block.blockHeight, selectedStyle);
+                  };
+                });
+              });
+            };
+          }, container);
+        });
+      });
+    }
+
+    // Initialize main sketch
+    mainSketch = new p5(mainSketchSetup);
+  </script>
+</body>
+</html>
