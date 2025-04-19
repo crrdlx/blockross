@@ -1,54 +1,15 @@
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>BlockRoss</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+  <script src="https://unpkg.com/nostr-tools@1.17.0/lib/nostr.bundle.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;700&family=Pacifico&display=swap" rel="stylesheet">
   <style>
     body {
       font-family: 'Lora', serif;
       text-align: center;
-      background: linear-gradient(to bottom, #d0e4f5, #ffffff);
       margin: 0;
       padding: 0;
     }
@@ -93,6 +54,18 @@
       font-weight: 400;
       color: #333;
     }
+    #nostr-config {
+      margin: 20px;
+      font-size: 16px;
+    }
+    #nostr-config input[type="text"] {
+      width: 300px;
+      padding: 5px;
+      margin: 5px;
+    }
+    #nostr-config input[type="checkbox"] {
+      margin-left: 10px;
+    }
   </style>
 </head>
 <body>
@@ -103,7 +76,21 @@
   <div id="description">
     BlockRoss, inspired by Bob Ross, creates surprising art from Bitcoin’s latest block data. Each block’s height and hash spark unique visuals in styles like Modern or Other-Worldly. Click thumbnails to explore past blocks’ art.
   </div>
+  <div id="nostr-config">
+    <label>Nostr nsec: <input type="text" id="nsec-input" placeholder="Enter nsec for posting"></label>
+    <label><input type="checkbox" id="auto-post"> Auto-post to Nostr</label>
+  </div>
   <script>
+    // Set random background gradient on load
+    const gradients = [
+      'linear-gradient(to bottom, #d0e4f5, #ffffff)', // Blue to white
+      'linear-gradient(to bottom, #ffe4e1, #fffacd)', // Pink to cream
+      'linear-gradient(to bottom, #e0f7e0, #f0fff0)', // Green to light green
+      'linear-gradient(to bottom, #f0e6ff, #e6e6fa)', // Purple to lavender
+      'linear-gradient(to bottom, #fff5e6, #ffe4b5)'  // Orange to light yellow
+    ];
+    document.body.style.background = gradients[Math.floor(Math.random() * gradients.length)];
+
     // Function to fetch latest block data from Mempool.space API
     async function fetchBlockData() {
       try {
@@ -191,6 +178,66 @@
       }, 30000); // Poll every 30 seconds
     }
 
+    // Nostr posting functionality
+    async function postToNostr(canvas, blockHeight, blockHash, style) {
+      const nsec = document.getElementById('nsec-input').value || localStorage.getItem('blockross_nsec');
+      const autoPost = document.getElementById('auto-post').checked;
+      if (!nsec || !autoPost) return;
+
+      localStorage.setItem('blockross_nsec', nsec); // Store for convenience (not secure for production)
+
+      try {
+        // Capture canvas as image
+        const dataUrl = canvas.elt.toDataURL('image/png');
+        const blob = await (await fetch(dataUrl)).blob();
+
+        // Upload to Imgur
+        const formData = new FormData();
+        formData.append('image', blob);
+        const imgurResponse = await fetch('https://api.imgur.com/3/image', {
+          method: 'POST',
+          headers: {
+            Authorization: 'Client-ID YOUR_IMGUR_CLIENT_ID' // Replace with your Imgur Client ID
+          },
+          body: formData
+        });
+        const imgurData = await imgurResponse.json();
+        if (!imgurData.success) throw new Error('Imgur upload failed');
+        const imageUrl = imgurData.data.link;
+
+        // Create Nostr event
+        const event = {
+          kind: 1,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [['t', 'blockross'], ['t', 'art'], ['t', 'bitcoin']],
+          content: `New BlockRoss art! Block: ${blockHeight}, Style: ${style}, Hash (last 6): ${blockHash.slice(-6)} ${imageUrl}`,
+          pubkey: nostr.getPublicKey(nsec)
+        };
+        event.id = nostr.getEventHash(event);
+        event.sig = nostr.signEvent(event, nsec);
+
+        // Publish to relays
+        const relays = [
+          'wss://relay.damus.io',
+          'wss://nostr-pub.wellorder.net',
+          'wss://relay.primal.net'
+        ];
+        for (const url of relays) {
+          try {
+            const relay = nostr.relayInit(url);
+            await relay.connect();
+            await relay.publish(event);
+            console.log(`Posted to ${url}`);
+            relay.close();
+          } catch (e) {
+            console.error(`Failed to post to ${url}:`, e);
+          }
+        }
+      } catch (error) {
+        console.error('Error posting to Nostr:', error);
+      }
+    }
+
     // p5.js main sketch
     function mainSketchSetup(p) {
       p.setup = function() {
@@ -207,6 +254,8 @@
           console.log(`Main sketch - Seed: ${seed}, Style: ${style}`);
           updateInfo(blockHash, blockHeight, randomizer, style);
           drawArt(p, blockHeight, style);
+          // Post to Nostr after drawing
+          postToNostr(canvas, blockHeight, blockHash, style);
           startBlockPolling();
           setFallbackReload();
           // Load previous blocks
@@ -294,7 +343,7 @@
         const x = p.random(p.width);
         const y = p.random(p.height * 0.6, p.height * 0.8);
         p.fill(139, 69, 19);
-        p.rect(x - 10, y, 20, p.height - yṇ);
+        p.rect(x - 10, y, 20, p.height - y);
         p.fill(34, 139, 34);
         p.ellipse(x, y - 20, 50, 50);
       }
