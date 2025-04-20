@@ -1,5 +1,43 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
 
-<!DOCTYPE html>
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -238,14 +276,14 @@
   <script>
     // Set random background gradient on load
     const gradients = [
-      'linear-gradient(to bottom, #d0e4f5, #ffffff)', // Blue to white
-      'linear-gradient(to bottom, #ffe4e1, #fffacd)', // Pink to cream
-      'linear-gradient(to bottom, #e0f7e0, #f0fff0)', // Green to light green
-      'linear-gradient(to bottom, #f0e6ff, #e6e6fa)', // Purple to lavender
-      'linear-gradient(to bottom, #fff5e6, #ffe4b5)', // Orange to light yellow
-      'linear-gradient(to bottom, #f5f5dc, #fffaf0)', // Beige to ivory
-      'linear-gradient(to bottom, #e6f0ff, #f0f8ff)', // Light blue variations
-      'linear-gradient(to bottom, #ffe6ff, #fff0f5)'  // Pink to pale pink
+      'linear-gradient(to bottom, #d0e4f5, #ffffff)', // Blue to white (sky-like)
+      'linear-gradient(to bottom, #ffe4e1, #fffacd)', // Pink to cream (sunset glow)
+      'linear-gradient(to bottom, #e0f7e0, #f0fff0)', // Green to light green (forest mist)
+      'linear-gradient(to bottom, #f0e6ff, #e6e6fa)', // Purple to lavender (twilight)
+      'linear-gradient(to bottom, #fff5e6, #ffe4b5)', // Orange to light yellow (golden hour)
+      'linear-gradient(to bottom, #f5f5dc, #fffaf0)', // Beige to ivory (sandy shore)
+      'linear-gradient(to bottom, #e6f0ff, #f0f8ff)', // Light blue variations (clear sky)
+      'linear-gradient(to bottom, #ffe6ff, #fff0f5)'  // Pink to pale pink (cotton candy clouds)
     ];
     document.body.style.background = gradients[Math.floor(Math.random() * gradients.length)];
     
@@ -363,8 +401,71 @@
               p.strokeWeight(2);
               for (let i = 0; i < points.length; i++) {
                 for (let j = i + 1; j < points.length; j++) {
-                  if (p.dist(points[i].x, points[i].y, points[j].x, points[j].y) < 100
-
-
-</body>
+                  p.line(points[i].x, points[i].y, points[j].x, points[j].y);
+                }
+              }
+            } else if (style === 'Blueprint') {
+              // Blueprint style with white lines on blue background
+              p.background(25, 50, 150);
+              
+              // Grid lines
+              p.stroke(200, 200, 255, 100);
+              p.strokeWeight(0.5);
+              for (let i = 0; i < p.width; i += 10) {
+                p.line(i, 0, i, p.height);
+              }
+              for (let i = 0; i < p.height; i += 10) {
+                p.line(0, i, p.width, i);
+              }
+              
+              // Blueprint elements
+              p.stroke(255);
+              p.strokeWeight(1);
+              p.noFill();
+              
+              // Draw some architecture-like shapes
+              // Circle
+              p.ellipse(p.width/2, p.height/2, 60, 60);
+              
+              // Rectangle
+              p.rect(p.width/4, p.height/4, 40, 30);
+              
+              // Some connecting lines
+              p.line(p.width/2, p.height/2, p.width/4 + 20, p.height/4 + 15);
+              
+              // Dimension lines and measurements
+              p.stroke(200, 200, 255);
+              p.strokeWeight(0.5);
+              p.line(p.width/4, p.height/4 - 5, p.width/4 + 40, p.height/4 - 5);
+              p.line(p.width/4 - 5, p.height/4, p.width/4 - 5, p.height/4 + 30);
+              
+              // Some dots for technical effect
+              p.strokeWeight(2);
+              for (let i = 0; i < 10; i++) {
+                p.point(p.random(p.width), p.random(p.height));
+              }
+            }
+          }
+        }, container);
+      });
+    }
+  </script>
+<!-- Default Statcounter code for BlockRoss
+https://blockross.vercel.app -->
+<script type="text/javascript">
+  var sc_project=13122540; 
+  var sc_invisible=1; 
+  var sc_security="f13fcede"; 
+</script>
+<script type="text/javascript"
+src="https://www.statcounter.com/counter/counter.js"
+async></script>
+<noscript><div class="statcounter"><a title="Web Analytics
+Made Easy - Statcounter" href="https://statcounter.com/"
+target="_blank"><img class="statcounter"
+src="https://c.statcounter.com/13122540/0/f13fcede/1/"
+alt="Web Analytics Made Easy - Statcounter"
+referrerPolicy="no-referrer-when-downgrade"></a></div></noscript>
+<!-- End of Statcounter Code -->
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'933121b94b4fbf70',t:'MTc0NTExNTMwMy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>

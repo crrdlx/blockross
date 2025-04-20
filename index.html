@@ -1,8 +1,47 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
 
-<!DOCTYPE html>
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BlockRoss</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;700&family=Pacifico&display=swap" rel="stylesheet">
@@ -62,9 +101,22 @@
       text-decoration: none;
       font-weight: 700;
       margin: 0 10px;
+      font-size: 16px;
     }
     nav a:hover {
       text-decoration: underline;
+    }
+    /* Mobile responsive font sizes */
+    @media screen and (max-width: 600px) {
+      #info {
+        font-size: 1.2rem; /* Matches or slightly exceeds 18px */
+      }
+      #description {
+        font-size: 1.1rem; /* Slightly larger than desktop for readability */
+      }
+      nav a {
+        font-size: 1.1rem;
+      }
     }
   </style>
 </head>
@@ -78,7 +130,7 @@
   <div id="main-canvas"></div>
   <div id="previous-blocks"></div>
   <div id="description">
-    BlockRoss transforms Bitcoin's latest block data into unique art. Each piece is a digital interpretation of blockchain activity.
+    BlockRoss transforms Bitcoin's latest block data into unique art. Each piece is a digital interpretation of blockchain activity. The name is an homage to Bob Ross.
     <a href="about.html">Learn more about this project</a>.
   </div>
   <script>
@@ -178,10 +230,10 @@
       return { randomizer, seed };
     }
 
-    // Update info display
+    // Update info display (without Randomizer)
     function updateInfo(hash, height, randomizer, style) {
       const infoDiv = document.getElementById('info');
-      infoDiv.innerHTML = `Block Height: ${height}<br>Block Hash (Last 6): ${hash.slice(-6)}<br>Randomizer: ${randomizer}<br>Style: ${style}`;
+      infoDiv.innerHTML = `Block Height: ${height}<br>Block Hash (Last 6): ${hash.slice(-6)}<br>Style: ${style}`;
     }
 
     // Global variable to track current block height
@@ -904,22 +956,21 @@
     // Initialize main sketch
     mainSketch = new p5(mainSketchSetup);
   </script>
-<!-- Default Statcounter code for BlockRoss
-https://blockross.vercel.app -->
-<script type="text/javascript">
-  var sc_project=13122540; 
-  var sc_invisible=1; 
-  var sc_security="f13fcede"; 
+  <!-- Default Statcounter code for BlockRoss https://blockross.vercel.app -->
+  <script type="text/javascript">
+    var sc_project=13122540; 
+    var sc_invisible=1; 
+    var sc_security="f13fcede"; 
   </script>
   <script type="text/javascript"
-  src="https://www.statcounter.com/counter/counter.js"
-  async></script>
-  <noscript><div class="statcounter"><a title="Web Analytics
-  Made Easy - Statcounter" href="https://statcounter.com/"
-  target="_blank"><img class="statcounter"
-  src="https://c.statcounter.com/13122540/0/f13fcede/1/"
-  alt="Web Analytics Made Easy - Statcounter"
-  referrerPolicy="no-referrer-when-downgrade"></a></div></noscript>
+    src="https://www.statcounter.com/counter/counter.js"
+    async></script>
+  <noscript><div class="statcounter"><a title="Web Analytics Made Easy - Statcounter" href="https://statcounter.com/"
+    target="_blank"><img class="statcounter"
+    src="https://c.statcounter.com/13122540/0/f13fcede/1/"
+    alt="Web Analytics Made Easy - Statcounter"
+    referrerPolicy="no-referrer-when-downgrade"></a></div></noscript>
   <!-- End of Statcounter Code -->
+  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'933109f549c3675b',t:'MTc0NTExNDMzMC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>
