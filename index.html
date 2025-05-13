@@ -334,6 +334,9 @@ switch(style) {
   case 'Watercolor': drawWatercolor(p, heightFactor); break;
   case 'Blueprint': drawBlueprint(p, heightFactor); break;
   case 'Stained Glass': drawStainedGlass(p, heightFactor); break;
+  case 'Space': drawSpace(p, heightFactor); break;
+  case 'Fire': drawFire(p, heightFactor); break;
+  case 'Aqua': drawAqua(p, heightFactor); break;
   case 'Flow Fields': drawFlowFields(p, heightFactor); break;
   default: drawModern(p, heightFactor);
 }
@@ -790,6 +793,186 @@ for (let i = 0; i < points.length; i++) {
 }
 }
 
+function drawSpace(p, heightFactor) {
+for (let y = 0; y < p.height; y++) {
+  const inter = p.map(y, 0, p.height, 0, 1);
+  const c = p.lerpColor(p.color(28, 37, 38), p.color(10, 14, 20), inter);
+  p.stroke(c);
+  p.line(0, y, p.width, y);
+}
+const starCount = 50 + Math.floor(heightFactor * 100);
+for (let i = 0; i < starCount; i++) {
+  const x = p.random(p.width);
+  const y = p.random(p.height);
+  const size = p.random(1, 5);
+  const opacity = p.random(50, 100);
+  const noiseVal = p.noise(x * 0.01, y * 0.01) * 255;
+  p.noStroke();
+  p.fill(noiseVal, noiseVal, 255, opacity);
+  p.ellipse(x, y, size, size);
+}
+const nebulaCount = 3 + Math.floor(heightFactor * 7);
+const bgColors = [
+  [200, 220, 255], [255, 245, 200], [220, 255, 220], [255, 200, 220],
+  [230, 230, 230], [240, 230, 240], [255, 235, 205], [240, 248, 255], [220, 220, 220]
+];
+for (let i = 0; i < nebulaCount; i++) {
+  const x = p.random(p.width);
+  const y = p.random(p.height);
+  const size = p.random(50, 200) * heightFactor;
+  const color = bgColors[Math.floor(p.random(bgColors.length))];
+  p.noStroke();
+  p.fill(color[0], color[1], color[2], p.random(20, 50));
+  p.ellipse(x, y, size, size * p.random(0.7, 1.3));
+}
+const planetCount = 1 + Math.floor(heightFactor * 2);
+for (let i = 0; i < planetCount; i++) {
+  const x = p.random(p.width * 0.2, p.width * 0.8);
+  const y = p.random(p.height * 0.2, p.height * 0.8);
+  const size = p.random(50, 150) * heightFactor;
+  const color1 = bgColors[Math.floor(p.random(bgColors.length))];
+  const color2 = bgColors[Math.floor(p.random(bgColors.length))];
+  for (let r = size / 2; r > 0; r -= 1) {
+    const inter = p.map(r, 0, size / 2, 0, 1);
+    const c = p.lerpColor(p.color(color1[0], color1[1], color1[2]), p.color(color2[0], color2[1], color2[2]), inter);
+    p.fill(c);
+    p.ellipse(x, y, r * 2, r * 2);
+  }
+  if (p.random() > 0.6) {
+    p.noFill();
+    p.stroke(255, 255, 255, 50);
+    p.strokeWeight(2);
+    p.ellipse(x, y, size * 1.5, size * 0.5);
+  }
+}
+if (heightFactor > 0.7) {
+  const cometCount = 1 + Math.floor(heightFactor * 2);
+  for (let i = 0; i < cometCount; i++) {
+    const x1 = p.random(p.width);
+    const y1 = p.random(p.height);
+    const angle = p.random(p.TWO_PI);
+    const length = p.random(30, 60);
+    const x2 = x1 + p.cos(angle) * length;
+    const y2 = y1 + p.sin(angle) * length;
+    for (let t = 0; t < 1; t += 0.1) {
+      const inter = p.lerp(x1, x2, t);
+      const interY = p.lerp(y1, y2, t);
+      p.fill(255, 255, 255, p.lerp(150, 0, t));
+      p.noStroke();
+      p.ellipse(inter, interY, 3, 3);
+    }
+  }
+}
+}
+
+function drawFire(p, heightFactor) {
+// Fiery background gradient
+for (let y = 0; y < p.height; y++) {
+  const inter = p.map(y, 0, p.height, 0, 1);
+  const c = p.lerpColor(p.color(74, 14, 14), p.color(26, 26, 26), inter);
+  p.stroke(c);
+  p.line(0, y, p.width, y);
+}
+// Embers
+const emberCount = 50 + Math.floor(heightFactor * 100);
+for (let i = 0; i < emberCount; i++) {
+  const x = p.random(p.width);
+  const y = p.random(p.height);
+  const size = p.random(1, 5);
+  const opacity = p.random(50, 100);
+  p.noStroke();
+  p.fill(255, p.random(140, 255), 0, opacity);
+  p.ellipse(x, y, size, size);
+}
+// Flames
+const flameCount = 5 + Math.floor(heightFactor * 15);
+const bgColors = [
+  [255, 245, 200], [255, 200, 220], [255, 235, 205]
+];
+for (let i = 0; i < flameCount; i++) {
+  const x = p.random(p.width);
+  const baseY = p.height * p.random(0.7, 1);
+  const height = p.random(50, 150) * heightFactor;
+  const width = height * p.random(0.3, 0.5);
+  const color = bgColors[Math.floor(p.random(bgColors.length))];
+  p.noStroke();
+  p.fill(color[0], color[1] - 50, color[2] - 100, p.random(20, 50));
+  p.beginShape();
+  p.vertex(x - width, baseY);
+  p.vertex(x + width, baseY);
+  p.vertex(x + width * 0.5, baseY - height * 0.7);
+  p.vertex(x, baseY - height);
+  p.vertex(x - width * 0.5, baseY - height * 0.7);
+  p.endShape(p.CLOSE);
+}
+// Smoke
+if (heightFactor > 0.6) {
+  const smokeCount = 3 + Math.floor(heightFactor * 7);
+  for (let i = 0; i < smokeCount; i++) {
+    const x = p.random(p.width);
+    const y = p.random(p.height * 0.2, p.height * 0.5);
+    const size = p.random(50, 150) * heightFactor;
+    p.noStroke();
+    p.fill(211, 211, 211, p.random(10, 30));
+    p.ellipse(x, y, size, size * p.random(0.7, 1.3));
+  }
+}
+}
+
+function drawAqua(p, heightFactor) {
+// Underwater background gradient
+for (let y = 0; y < p.height; y++) {
+  const inter = p.map(y, 0, p.height, 0, 1);
+  const c = p.lerpColor(p.color(10, 61, 98), p.color(179, 205, 224), inter);
+  p.stroke(c);
+  p.line(0, y, p.width, y);
+}
+// Bubbles
+const bubbleCount = 30 + Math.floor(heightFactor * 70);
+for (let i = 0; i < bubbleCount; i++) {
+  const x = p.random(p.width);
+  const y = p.random(p.height);
+  const size = p.random(5, 30) * heightFactor;
+  p.noStroke();
+  p.fill(240, 248, 255, p.random(70, 100));
+  p.ellipse(x, y - size * 0.5, size, size);
+}
+// Waves
+const waveCount = 3 + Math.floor(heightFactor * 7);
+for (let i = 0; i < waveCount; i++) {
+  const yBase = p.random(p.height * 0.2, p.height * 0.8);
+  p.stroke(70, 130, 180, p.random(20, 50));
+  p.strokeWeight(2);
+  p.noFill();
+  p.beginShape();
+  for (let x = 0; x <= p.width; x += 10) {
+    const y = yBase + p.sin(x * 0.01 + i) * 20 * heightFactor;
+    p.vertex(x, y);
+  }
+  p.endShape();
+}
+// Coral/Plants
+const coralCount = 2 + Math.floor(heightFactor * 6);
+const bgColors = [
+  [200, 220, 255], [220, 255, 220], [255, 200, 220]
+];
+for (let i = 0; i < coralCount; i++) {
+  const x = p.random(p.width);
+  const baseY = p.height;
+  const height = p.random(50, 150) * heightFactor;
+  const color = bgColors[Math.floor(p.random(bgColors.length))];
+  p.stroke(color[0], color[1], color[2], 150);
+  p.strokeWeight(3);
+  p.noFill();
+  p.beginShape();
+  for (let y = baseY; y > baseY - height; y -= 10) {
+    const offset = p.sin(y * 0.05 + i) * 20 * heightFactor;
+    p.vertex(x + offset, y);
+  }
+  p.endShape();
+}
+}
+
 function drawFlowFields(p, heightFactor) {
 p.background(245, 245, 245);
 const particleCount = 100 + Math.floor(heightFactor * 100);
@@ -912,7 +1095,8 @@ fetchPreviousBlocks().then(blocks => {
           'Modern', 'Classical', 'Realist', 'Natural', 'AI-Generated',
           'Other-Worldly', 'Fractal', 'Surrealist', 'Cyberpunk', 'Expressionist',
           'Cubist', 'Impressionist', 'Minimalist', 'Pixel', 'Vaporwave',
-          'Glitch', 'Geometric', 'Watercolor', 'Blueprint', 'Stained Glass', 'Flow Fields'
+          'Glitch', 'Geometric', 'Watercolor', 'Blueprint', 'Stained Glass',
+          'Space', 'Fire', 'Aqua', 'Flow Fields'
         ];
         const styleIndex = Math.floor(p.random(0, styles.length));
         const style = styles[styleIndex];
@@ -962,7 +1146,8 @@ p.setup = function() {
       'Modern', 'Classical', 'Realist', 'Natural', 'AI-Generated',
       'Other-Worldly', 'Fractal', 'Surrealist', 'Cyberpunk', 'Expressionist',
       'Cubist', 'Impressionist', 'Minimalist', 'Pixel', 'Vaporwave',
-      'Glitch', 'Geometric', 'Watercolor', 'Blueprint', 'Stained Glass', 'Flow Fields'
+      'Glitch', 'Geometric', 'Watercolor', 'Blueprint', 'Stained Glass',
+      'Space', 'Fire', 'Aqua', 'Flow Fields'
     ];
     const styleIndex = Math.floor(p.random(0, styles.length));
     const style = styles[styleIndex];

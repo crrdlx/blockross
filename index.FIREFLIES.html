@@ -1,0 +1,1245 @@
+<script type="text/javascript">
+    var gk_isXlsx = false;
+    var gk_xlsxFileLookup = {};
+    var gk_fileData = {};
+    function filledCell(cell) {
+      return cell !== '' && cell != null;
+    }
+    function loadFileData(filename) {
+    if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+        try {
+            var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+            var firstSheetName = workbook.SheetNames[0];
+            var worksheet = workbook.Sheets[firstSheetName];
+            var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+            var filteredData = jsonData.filter(row => row.some(filledCell));
+            var headerRowIndex = filteredData.findIndex((row, index) =>
+              row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+            );
+            if (headerRowIndex === -1 || headerRowIndex > 25) {
+              headerRowIndex = 0;
+            }
+            var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex));
+            csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+            return csv;
+        } catch (e) {
+            console.error(e);
+            return "";
+        }
+    }
+    return gk_fileData[filename] || "";
+    }
+</script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlockRoss</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;700&family=Pacifico&display=swap" rel="stylesheet">
+<style>
+body {
+  font-family: 'Lora', serif;
+  text-align: center;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+h1 {
+  font-family: 'Pacifico', cursive;
+  font-size: 48px;
+  color: #2c3e50;
+  margin: 20px 0;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+}
+#info {
+  margin: 20px;
+  font-size: 18px;
+  font-weight: 400;
+  color: #333;
+}
+#main-canvas {
+  margin: 20px auto;
+  display: block;
+  width: 100%;
+  max-width: 600px;
+}
+#main-canvas canvas {
+  width: 100% !important;
+  height: auto !important;
+}
+#previous-blocks {
+  margin: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+.thumbnail {
+  cursor: pointer;
+  border: 1px solid #ccc;
+  padding: 5px;
+  background: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.thumbnail:hover {
+  border-color: #333;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+#description {
+  margin: 20px auto;
+  max-width: 600px;
+  font-size: 16px;
+  font-weight: 400;
+  color: #333;
+}
+nav {
+  margin: 10px;
+}
+nav a {
+  color: #2980b9;
+  text-decoration: none;
+  font-weight: 700;
+  margin: 0 10px;
+  font-size: 16px;
+}
+nav a:hover {
+  text-decoration: underline;
+}
+@media screen and (max-width: 600px) {
+  #info {
+    font-size: 1.2rem;
+  }
+  #description {
+    font-size: 1.1rem;
+  }
+  nav a {
+    font-size: 1.1rem;
+  }
+  #main-canvas {
+    max-width: 100%;
+  }
+}
+</style>
+</head>
+<body>
+<h1>BlockRoss</h1>
+<nav>
+<a href="index.html">Home</a>
+<a href="about.html">About</a>
+</nav>
+<div id="info">Fetching blockchain data...</div>
+<div id="main-canvas"></div>
+<div id="previous-blocks"></div>
+<div id="description">
+BlockRoss transforms Bitcoin's latest block data into unique art. Each piece is a digital interpretation of blockchain activity. The name is an homage to Bob Ross.
+<a href="about.html">Learn more about this project</a>.
+</div>
+<script>
+const gradients = [
+  'linear-gradient(to bottom, #d0e4f5, #ffffff)',
+  'linear-gradient(to bottom, #ffe4e1, #fffacd)',
+  'linear-gradient(to bottom, #e0f7e0, #f0fff0)',
+  'linear-gradient(to bottom, #f0e6ff, #e6e6fa)',
+  'linear-gradient(to bottom, #fff5e6, #ffe4b5)',
+  'linear-gradient(to bottom, #f5f5dc, #fffaf0)',
+  'linear-gradient(to bottom, #e6f0ff, #f0f8ff)',
+  'linear-gradient(to bottom, #ffe6ff, #fff0f5)'
+];
+document.body.style.background = gradients[Math.floor(Math.random() * gradients.length)];
+
+async function fetchWithTimeout(url, timeout = 5000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
+}
+
+async function fetchBlockData() {
+  try {
+    const hashResponse = await fetchWithTimeout('https://mempool.space/api/blocks/tip/hash');
+    const blockHash = await hashResponse.text();
+    const heightResponse = await fetchWithTimeout('https://mempool.space/api/blocks/tip/height');
+    const blockHeight = await heightResponse.text();
+    return { blockHash, blockHeight };
+  } catch (error) {
+    console.error('Error fetching block data:', error);
+    const fallbackHash = '000000000000000000' + Math.random().toString(16).substr(2, 8);
+    const fallbackHeight = Math.floor(700000 + Math.random() * 50000).toString();
+    console.log('Using fallback data:', fallbackHash, fallbackHeight);
+    return { blockHash: fallbackHash, blockHeight: fallbackHeight };
+  }
+}
+
+async function fetchBlockHeight() {
+  try {
+    const response = await fetchWithTimeout('https://mempool.space/api/blocks/tip/height');
+    return await response.text();
+  } catch (error) {
+    console.error('Error fetching block height:', error);
+    return null;
+  }
+}
+
+async function fetchPreviousBlocks() {
+  try {
+    const response = await fetchWithTimeout('https://mempool.space/api/blocks');
+    const blocks = await response.json();
+    return blocks.slice(1, 6).map(block => ({
+      blockHash: block.id,
+      blockHeight: block.height.toString()
+    }));
+  } catch (error) {
+    console.error('Error fetching previous blocks:', error);
+    const fallbackBlocks = [];
+    for (let i = 0; i < 5; i++) {
+      const fallbackHash = '000000000000000000' + Math.random().toString(16).substr(2, 8);
+      const fallbackHeight = (700000 - (i * 100) + Math.floor(Math.random() * 50)).toString();
+      fallbackBlocks.push({ blockHash: fallbackHash, blockHeight: fallbackHeight });
+    }
+    return fallbackBlocks;
+  }
+}
+
+function stringToSeed(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash = hash & hash;
+  }
+  return Math.abs(hash);
+}
+
+function createRandomizer(hash, height) {
+  const lastSix = hash.slice(-6);
+  const randomizer = `${height}-${lastSix}`;
+  const seed = stringToSeed(randomizer);
+  return { randomizer, seed };
+}
+
+function updateInfo(hash, height, randomizer, style) {
+  const infoDiv = document.getElementById('info');
+  infoDiv.innerHTML = `Block Height: ${height}<br>Block Hash (Last 6): ${hash.slice(-6)}<br>Style: ${style}`;
+}
+
+let currentBlockHeight = null;
+let mainSketch = null;
+
+let fallbackTimer = null;
+function setFallbackReload() {
+  if (fallbackTimer) clearTimeout(fallbackTimer);
+  fallbackTimer = setTimeout(() => {
+    location.reload();
+  }, 360000);
+}
+
+function startBlockPolling() {
+  setInterval(async () => {
+    const newHeight = await fetchBlockHeight();
+    if (newHeight && currentBlockHeight && newHeight !== currentBlockHeight) {
+      location.reload();
+    }
+  }, 30000);
+}
+
+function setupCanvas(p, canvasStyle) {
+  if (canvasStyle === 'Standard') {
+  } else if (canvasStyle === 'Circular') {
+    p.drawingContext.save();
+    p.drawingContext.beginPath();
+    p.drawingContext.arc(p.width/2, p.height/2, p.min(p.width, p.height)/2, 0, Math.PI*2);
+    p.drawingContext.clip();
+  } else if (canvasStyle === 'Framed') {
+    const frameSize = 30;
+    p.fill(245, 245, 220);
+    p.stroke(139, 69, 19);
+    p.strokeWeight(3);
+    p.rect(0, 0, p.width, p.height);
+    p.drawingContext.save();
+    p.drawingContext.beginPath();
+    p.drawingContext.rect(frameSize, frameSize, p.width - frameSize*2, p.height - frameSize*2);
+    p.drawingContext.clip();
+  } else if (canvasStyle === 'Divided') {
+    p.drawingContext.save();
+    const sections = 2 + Math.floor(p.random(3));
+    if (p.random() > 0.5) {
+      const sectionWidth = p.width / sections;
+      for (let i = 0; i < sections; i++) {
+        p.drawingContext.beginPath();
+        p.drawingContext.rect(i * sectionWidth, 0, sectionWidth, p.height);
+        if (i % 2 === 0) {
+          p.drawingContext.clip();
+        }
+      }
+    } else {
+      const sectionHeight = p.height / sections;
+      for (let i = 0; i < sections; i++) {
+        p.drawingContext.beginPath();
+        p.drawingContext.rect(0, i * sectionHeight, p.width, sectionHeight);
+        if (i % 2 === 0) {
+          p.drawingContext.clip();
+        }
+      }
+    }
+  } else if (canvasStyle === 'Layered') {
+    p.drawingContext.save();
+    const numLayers = 2 + Math.floor(p.random(2));
+    const overlayAlpha = 80 + Math.floor(p.random(40));
+    p.fill(p.random(255), p.random(255), p.random(255), overlayAlpha);
+    p.noStroke();
+    for (let i = 0; i < numLayers; i++) {
+      const x = p.random(-50, 50);
+      const y = p.random(-50, 50);
+      const w = p.width - Math.abs(x);
+      const h = p.height - Math.abs(y);
+      p.rect(Math.max(0, x), Math.max(0, y), w, h);
+    }
+  }
+}
+
+function drawArt(p, blockHeight, style) {
+  const heightFactor = parseInt(blockHeight) % 1000 / 1000;
+  const bgColors = [
+    [200, 220, 255], [255, 245, 200], [220, 255, 220], [255, 200, 220],
+    [230, 230, 230], [240, 230, 240], [255, 235, 205], [240, 248, 255], [220, 220, 220]
+  ];
+  const bgColor = p.random(bgColors);
+  p.background(bgColor[0], bgColor[1], bgColor[2]);
+
+  switch(style) {
+    case 'Modern': drawModern(p, heightFactor); break;
+    case 'Classical': drawClassical(p, heightFactor); break;
+    case 'Realist': drawRealist(p, heightFactor); break;
+    case 'Natural': drawNatural(p, heightFactor); break;
+    case 'AI-Generated': drawAIGenerated(p, heightFactor); break;
+    case 'Other-Worldly': drawOtherWorldly(p, heightFactor); break;
+    case 'Fractal': drawFractal(p, heightFactor); break;
+    case 'Surrealist': drawSurrealist(p, heightFactor); break;
+    case 'Cyberpunk': drawCyberpunk(p, heightFactor); break;
+    case 'Expressionist': drawExpressionist(p, heightFactor); break;
+    case 'Cubist': drawCubist(p, heightFactor); break;
+    case 'Impressionist': drawImpressionist(p, heightFactor); break;
+    case 'Minimalist': drawMinimalist(p, heightFactor); break;
+    case 'Pixel': drawPixel(p, heightFactor); break;
+    case 'Vaporwave': drawVaporwave(p, heightFactor); break;
+    case 'Glitch': drawGlitch(p, heightFactor); break;
+    case 'Geometric': drawGeometric(p, heightFactor); break;
+    case 'Watercolor': drawWatercolor(p, heightFactor); break;
+    case 'Blueprint': drawBlueprint(p, heightFactor); break;
+    case 'Stained Glass': drawStainedGlass(p, heightFactor); break;
+    case 'Space': drawSpace(p, heightFactor); break;
+    case 'Fire': drawFire(p, heightFactor); break;
+    case 'Aqua': drawAqua(p, heightFactor); break;
+    case 'Fireflies': drawFireflies(p, heightFactor); break;
+    case 'Flow Fields': drawFlowFields(p, heightFactor); break;
+    default: drawModern(p, heightFactor);
+  }
+
+  if (p.drawingContext._stack && p.drawingContext._stack.length > 0) {
+    p.drawingContext.restore();
+  }
+}
+
+function drawModern(p, heightFactor) {
+  const numShapes = 5 + Math.floor(heightFactor * 10);
+  for (let i = 0; i < numShapes; i++) {
+    p.fill(p.random(255), p.random(255), p.random(255));
+    p.noStroke();
+    const x = p.random(p.width);
+    const y = p.random(p.height);
+    const size = p.random(50, 200) * heightFactor;
+    if (p.random() > 0.5) {
+      p.rect(x, y, size, size);
+    } else {
+      p.ellipse(x, y, size, size);
+    }
+  }
+}
+
+function drawClassical(p, heightFactor) {
+  const numArcs = 10 + Math.floor(heightFactor * 20);
+  p.strokeWeight(2);
+  for (let i = 0; i < numArcs; i++) {
+    p.stroke(p.random(100, 200), p.random(50, 150), 50, 150);
+    p.noFill();
+    const x = p.width / 2;
+    const y = p.height / 2;
+    const radius = p.random(50, 300) * heightFactor;
+    p.arc(x, y, radius, radius, p.random(p.TWO_PI), p.random(p.TWO_PI));
+  }
+}
+
+function drawRealist(p, heightFactor) {
+  p.fill(100, 150, 50);
+  p.rect(0, p.height * 0.6, p.width, p.height * 0.4);
+  const numTrees = 5 + Math.floor(heightFactor * 10);
+  for (let i = 0; i < numTrees; i++) {
+    const x = p.random(p.width);
+    const y = p.random(p.height * 0.6, p.height * 0.8);
+    p.fill(139, 69, 19);
+    p.rect(x - 10, y, 20, p.height - y);
+    p.fill(34, 139, 34);
+    p.ellipse(x, y - 20, 50, 50);
+  }
+}
+
+function drawNatural(p, heightFactor) {
+  const numCurves = 10 + Math.floor(heightFactor * 20);
+  p.strokeWeight(3);
+  for (let i = 0; i < numCurves; i++) {
+    p.stroke(p.random(50, 150), p.random(100, 200), 50);
+    p.noFill();
+    p.beginShape();
+    p.curveVertex(p.random(p.width), p.random(p.height));
+    p.curveVertex(p.random(p.width), p.random(p.height));
+    p.curveVertex(p.random(p.width), p.random(p.height));
+    p.curveVertex(p.random(p.width), p.random(p.height));
+    p.endShape();
+  }
+}
+
+function drawAIGenerated(p, heightFactor) {
+  const numGlitches = 50 + Math.floor(heightFactor * 100);
+  for (let i = 0; i < numGlitches; i++) {
+    const x = p.random(p.width);
+    const y = p.random(p.height);
+    const size = p.random(5, 20);
+    p.fill(p.random(255), p.random(255), p.random(255), 200);
+    p.noStroke();
+    p.rect(x, y, size, size);
+    if (p.random() > 0.7) {
+      p.stroke(255, 0, 255);
+      p.line(x, y, x + p.random(-20, 20), y + p.random(-20, 20));
+    }
+  }
+}
+
+function drawOtherWorldly(p, heightFactor) {
+  const numShapes = 10 + Math.floor(heightFactor * 20);
+  for (let i = 0; i < numShapes; i++) {
+    const x = p.random(p.width);
+    const y = p.random(p.height);
+    const size = p.random(30, 100) * heightFactor;
+    p.fill(p.random(0, 50), p.random(150, 255), p.random(150, 255), 150);
+    p.noStroke();
+    p.ellipse(x, y, size, size * p.random(0.5, 1.5));
+  }
+}
+
+function drawFractal(p, heightFactor) {
+  function drawBranch(x, y, len, angle, depth) {
+    if (depth === 0) return;
+    p.stroke(255, 255 / depth, 255 / depth);
+    p.strokeWeight(depth);
+    const x2 = x + len * p.cos(angle);
+    const y2 = y + len * p.sin(angle);
+    p.line(x, y, x2, y2);
+    drawBranch(x2, y2, len * 0.7, angle + p.random(-p.PI / 4, p.PI / 4), depth - 1);
+    drawBranch(x2, y2, len * 0.7, angle + p.random(-p.PI / 4, p.PI / 4), depth - 1);
+  }
+  drawBranch(p.width / 2, p.height, 100 * heightFactor, -p.PI / 2, 5);
+}
+
+function drawSurrealist(p, heightFactor) {
+  const numShapes = 10 + Math.floor(heightFactor * 20);
+  for (let i = 0; i < numShapes; i++) {
+    const x = p.random(p.width);
+    const y = p.random(p.height);
+    const size = p.random(50, 150) * heightFactor;
+    p.fill(p.random(255), p.random(255), p.random(255), 100);
+    p.noStroke();
+    p.beginShape();
+    for (let j = 0; j < 6; j++) {
+      p.vertex(x + p.random(-size, size), y + p.random(-size, size));
+    }
+    p.endShape(p.CLOSE);
+  }
+}
+
+function drawCyberpunk(p, heightFactor) {
+  const gridSize = 20 + Math.floor(heightFactor * 30);
+  for (let x = 0; x < p.width; x += gridSize) {
+    for (let y = 0; y < p.height; y += gridSize) {
+      p.stroke(p.random(0, 255), p.random(150, 255), 255, 150);
+      p.strokeWeight(1);
+      p.line(x, y, x + gridSize, y);
+      p.line(x, y, x, y + gridSize);
+      if (p.random() > 0.8) {
+        p.fill(255, 0, 255, 100);
+        p.noStroke();
+        p.ellipse(x, y, gridSize / 2);
+      }
+    }
+  }
+}
+
+function drawExpressionist(p, heightFactor) {
+  const numStrokes = 20 + Math.floor(heightFactor * 30);
+  p.strokeWeight(5);
+  for (let i = 0; i < numStrokes; i++) {
+    const x1 = p.random(p.width);
+    const y1 = p.random(p.height);
+    const x2 = x1 + p.random(-50, 50);
+    const y2 = y1 + p.random(-50, 50);
+    p.stroke(p.random(255), p.random(255), p.random(255));
+    p.line(x1, y1, x2, y2);
+  }
+}
+
+function drawCubist(p, heightFactor) {
+  const numPlanes = 10 + Math.floor(heightFactor * 20);
+  for (let i = 0; i < numPlanes; i++) {
+    p.fill(p.random(150, 250), p.random(150, 250), p.random(150, 250), 150);
+    p.stroke(50);
+    p.strokeWeight(1);
+    p.beginShape();
+    const x = p.random(p.width);
+    const y = p.random(p.height);
+    const size = p.random(50, 120);
+    for (let j = 0; j < 4; j++) {
+      p.vertex(x + p.random(-size, size), y + p.random(-size, size));
+    }
+    p.endShape(p.CLOSE);
+  }
+}
+
+function drawImpressionist(p, heightFactor) {
+  const numStrokes = 500 + Math.floor(heightFactor * 1000);
+  for (let i = 0; i < numStrokes; i++) {
+    const x = p.random(p.width);
+    const y = p.random(p.height);
+    const size = p.random(2, 8);
+    const baseHue = p.random(360);
+    const saturation = p.random(40, 80);
+    const brightness = p.random(70, 100);
+    p.colorMode(p.HSB, 360, 100, 100, 100);
+    p.fill(baseHue, saturation, brightness, 50);
+    p.noStroke();
+    p.ellipse(x, y, size, size);
+    p.colorMode(p.RGB, 255, 255, 255, 255);
+  }
+}
+
+function drawMinimalist(p, heightFactor) {
+  const numElements = 1 + Math.floor(heightFactor * 3);
+  const colors = [
+    [0, 0, 0], [255, 255, 255], [255, 0, 0], [0, 0, 255], [255, 255, 0]
+  ];
+  for (let i = 0; i < numElements; i++) {
+    const color = colors[Math.floor(p.random(colors.length))];
+    p.fill(color[0], color[1], color[2]);
+    p.noStroke();
+    const shapeType = Math.floor(p.random(3));
+    const x = p.random(p.width * 0.2, p.width * 0.8);
+    const y = p.random(p.height * 0.2, p.height * 0.8);
+    const size = p.random(50, 200);
+    if (shapeType === 0) {
+      p.rect(x, y, size, size);
+    } else if (shapeType === 1) {
+      p.ellipse(x, y, size, size);
+    } else {
+      p.beginShape();
+      p.vertex(x, y);
+      p.vertex(x + size, y);
+      p.vertex(x + size/2, y + size);
+      p.endShape(p.CLOSE);
+    }
+  }
+}
+
+function drawPixel(p, heightFactor) {
+  const pixelSize = 15 + Math.floor(heightFactor * 20);
+  p.noStroke();
+  for (let x = 0; x < p.width; x += pixelSize) {
+    for (let y = 0; y < p.height; y += pixelSize) {
+      if (p.random() > 0.7) {
+        p.fill(p.random(255), p.random(255), p.random(255));
+        p.rect(x, y, pixelSize, pixelSize);
+      }
+    }
+  }
+  const numElements = 3 + Math.floor(heightFactor * 5);
+  for (let i = 0; i < numElements; i++) {
+    const x = Math.floor(p.random(p.width / pixelSize)) * pixelSize;
+    const y = Math.floor(p.random(p.height / pixelSize)) * pixelSize;
+    const size = Math.floor(p.random(2, 6)) * pixelSize;
+    p.fill(p.random(100, 255), p.random(100, 255), p.random(100, 255));
+    for (let px = 0; px < size; px += pixelSize) {
+      for (let py = 0; py < size; py += pixelSize) {
+        if (p.random() > 0.3) {
+          p.rect(x + px, y + py, pixelSize, pixelSize);
+        }
+      }
+    }
+  }
+}
+
+function drawVaporwave(p, heightFactor) {
+  p.background(0, 0, 30);
+  for (let y = 0; y < p.height; y++) {
+    const inter = p.map(y, 0, p.height, 0, 1);
+    const c = p.lerpColor(p.color(255, 100, 200), p.color(100, 200, 255), inter);
+    p.stroke(c);
+    p.line(0, y, p.width, y);
+  }
+  p.stroke(255, 255, 0, 100);
+  for (let x = 0; x < p.width; x += 20) {
+    p.line(x, 0, x, p.height);
+  }
+  for (let y = 0; y < p.height; y += 20) {
+    p.line(0, y, p.width, y);
+  }
+  p.fill(255, 50, 150);
+  p.noStroke();
+  p.ellipse(p.width/2, p.height/2, 200 * heightFactor, 200 * heightFactor);
+  for (let i = 0; i < 10; i++) {
+    p.fill(0, 255, 255, 150);
+    p.rect(p.random(p.width), p.random(p.height), 50, 50);
+  }
+}
+
+function drawGlitch(p, heightFactor) {
+  for (let i = 0; i < 20; i++) {
+    p.fill(p.random(255), p.random(255), p.random(255), 150);
+    p.noStroke();
+    p.rect(0, p.random(p.height), p.width, p.random(5, 20));
+  }
+  const numGlitches = 30 + Math.floor(heightFactor * 50);
+  for (let i = 0; i < numGlitches; i++) {
+    if (p.random() > 0.5) {
+      p.stroke(p.random(255), p.random(255), p.random(255));
+      p.strokeWeight(p.random(1, 5));
+      const y = p.random(p.height);
+      p.line(0, y, p.width, y);
+    } else {
+      p.stroke(p.random(255), p.random(255), p.random(255));
+      p.strokeWeight(p.random(1, 5));
+      const x = p.random(p.width);
+      p.line(x, 0, x, p.height);
+    }
+    if (p.random() > 0.8) {
+      p.noStroke();
+      p.fill(255, 0, 0, 100);
+      const x = p.random(p.width);
+      const y = p.random(p.height);
+      const w = p.random(20, 100);
+      const h = p.random(5, 20);
+      p.rect(x, y, w, h);
+      p.fill(0, 255, 0, 100);
+      p.rect(x + p.random(-10, 10), y, w, h);
+      p.fill(0, 0, 255, 100);
+      p.rect(x, y + p.random(-10, 10), w, h);
+    }
+  }
+}
+
+function drawGeometric(p, heightFactor) {
+  const numShapes = 5 + Math.floor(heightFactor * 15);
+  for (let i = 0; i < numShapes; i++) {
+    const x = p.random(p.width);
+    const y = p.random(p.height);
+    const size = p.random(30, 120);
+    p.stroke(0);
+    p.strokeWeight(2);
+    p.fill(p.random(255), p.random(255), p.random(255), 150);
+    const shapeType = Math.floor(p.random(5));
+    if (shapeType === 0) {
+      p.triangle(x, y, x + size, y, x + size/2, y - size);
+    } else if (shapeType === 1) {
+      p.rect(x, y, size, size * p.random(0.5, 1.5));
+    } else if (shapeType === 2) {
+      p.ellipse(x, y, size, size);
+    } else if (shapeType === 3) {
+      p.beginShape();
+      for (let j = 0; j < 5; j++) {
+        const angle = p.TWO_PI * j / 5 - p.HALF_PI;
+        const px = x + size/2 * p.cos(angle);
+        const py = y + size/2 * p.sin(angle);
+        p.vertex(px, py);
+      }
+      p.endShape(p.CLOSE);
+    } else {
+      p.beginShape();
+      for (let j = 0; j < 6; j++) {
+        const angle = p.TWO_PI * j / 6;
+        const px = x + size/2 * p.cos(angle);
+        const py = y + size/2 * p.sin(angle);
+        p.vertex(px, py);
+      }
+      p.endShape(p.CLOSE);
+    }
+  }
+}
+
+function drawWatercolor(p, heightFactor) {
+  p.background(240, 240, 240);
+  const numBlobs = 10 + Math.floor(heightFactor * 20);
+  for (let i = 0; i < numBlobs; i++) {
+    const baseHue = p.random(360);
+    const colorVariation = 30;
+    p.colorMode(p.HSB, 360, 100, 100, 100);
+    const hue = (baseHue + p.random(-colorVariation, colorVariation)) % 360;
+    const saturation = p.random(30, 70);
+    const brightness = p.random(60, 95);
+    p.fill(hue, saturation, brightness, 30);
+    p.colorMode(p.RGB, 255, 255, 255, 255);
+    p.noStroke();
+    p.beginShape();
+    const x = p.random(p.width);
+    const y = p.random(p.height);
+    const radius = p.random(50, 200) * heightFactor;
+    const points = 12;
+    for (let j = 0; j < points; j++) {
+      const angle = p.TWO_PI * j / points;
+      const r = radius * (0.7 + p.random(0.5));
+      const px = x + r * p.cos(angle);
+      const py = y + r * p.sin(angle);
+      p.curveVertex(px, py);
+    }
+    p.endShape(p.CLOSE);
+  }
+  for (let i = 0; i < 200; i++) {
+    p.stroke(255, 255, 255, 10);
+    p.strokeWeight(p.random(1, 3));
+    const x1 = p.random(p.width);
+    const y1 = p.random(p.height);
+    const x2 = x1 + p.random(-30, 30);
+    const y2 = y1 + p.random(-30, 30);
+    p.line(x1, y1, x2, y2);
+  }
+}
+
+function drawBlueprint(p, heightFactor) {
+  p.background(0, 50, 100);
+  p.stroke(100, 150, 255, 50);
+  p.strokeWeight(0.5);
+  const gridSize = 20;
+  for (let x = 0; x < p.width; x += gridSize) {
+    p.line(x, 0, x, p.height);
+  }
+  for (let y = 0; y < p.height; y += gridSize) {
+    p.line(0, y, p.width, y);
+  }
+  p.stroke(200, 230, 255);
+  p.strokeWeight(1);
+  p.noFill();
+  const numElements = 5 + Math.floor(heightFactor * 10);
+  for (let i = 0; i < numElements; i++) {
+    const x = p.random(p.width);
+    const y = p.random(p.height);
+    const size = p.random(40, 150);
+    if (p.random() > 0.5) {
+      p.ellipse(x, y, size, size);
+      p.line(x - size/2, y, x + size/2, y);
+      p.line(x, y - size/2, x, y + size/2);
+      p.line(x - size/2, y + size/2 + 10, x + size/2, y + size/2 + 10);
+      p.line(x - size/2, y + size/2 + 5, x - size/2, y + size/2 + 15);
+      p.line(x + size/2, y + size/2 + 5, x + size/2, y + size/2 + 15);
+    } else {
+      p.rect(x, y, size, size * 0.6);
+      p.line(x, y, x + size, y + size * 0.6);
+      p.line(x + size, y, x, y + size * 0.6);
+      p.line(x, y - 10, x + size, y - 10);
+      p.line(x, y - 5, x, y - 15);
+      p.line(x + size, y - 5, x + size, y - 15);
+    }
+    p.fill(200, 230, 255);
+    p.textSize(8);
+    p.text(Math.round(size).toString(), x, y);
+  }
+}
+
+function drawStainedGlass(p, heightFactor) {
+  const numPoints = 10 + Math.floor(heightFactor * 20);
+  const points = [];
+  for (let i = 0; i < numPoints; i++) {
+    points.push({ x: p.random(p.width), y: p.random(p.height) });
+  }
+  for (let x = 0; x < p.width; x += 5) {
+    for (let y = 0; y < p.height; y += 5) {
+      let closestDist = Number.MAX_VALUE;
+      let closestIndex = 0;
+      for (let i = 0; i < points.length; i++) {
+        const d = p.dist(x, y, points[i].x, points[i].y);
+        if (d < closestDist) {
+          closestDist = d;
+          closestIndex = i;
+        }
+      }
+      p.colorMode(p.HSB, 360, 100, 100);
+      const hue = (closestIndex * 30) % 360;
+      p.fill(hue, 80, 90);
+      p.noStroke();
+      p.rect(x, y, 5, 5);
+    }
+  }
+  p.colorMode(p.RGB, 255, 255, 255);
+  for (let i = 0; i < points.length; i++) {
+    for (let j = i + 1; j < points.length; j++) {
+      const midX = (points[i].x + points[j].x) / 2;
+      const midY = (points[i].y + points[j].y) / 2;
+      if (p.dist(points[i].x, points[i].y, points[j].x, points[j].y) < 150) {
+        p.stroke(0);
+        p.strokeWeight(2);
+        p.line(points[i].x, points[i].y, midX, midY);
+      }
+    }
+  }
+}
+
+function drawSpace(p, heightFactor) {
+  for (let y = 0; y < p.height; y++) {
+    const inter = p.map(y, 0, p.height, 0, 1);
+    const c = p.lerpColor(p.color(28, 37, 38), p.color(10, 14, 20), inter);
+    p.stroke(c);
+    p.line(0, y, p.width, y);
+  }
+  const starCount = 50 + Math.floor(heightFactor * 100);
+  for (let i = 0; i < starCount; i++) {
+    const x = p.random(p.width);
+    const y = p.random(p.height);
+    const size = p.random(1, 5);
+    const opacity = p.random(50, 100);
+    const noiseVal = p.noise(x * 0.01, y * 0.01) * 255;
+    p.noStroke();
+    p.fill(noiseVal, noiseVal, 255, opacity);
+    p.ellipse(x, y, size, size);
+  }
+  const nebulaCount = 3 + Math.floor(heightFactor * 7);
+  const bgColors = [
+    [200, 220, 255], [255, 245, 200], [220, 255, 220], [255, 200, 220],
+    [230, 230, 230], [240, 230, 240], [255, 235, 205], [240, 248, 255], [220, 220, 220]
+  ];
+  for (let i = 0; i < nebulaCount; i++) {
+    const x = p.random(p.width);
+    const y = p.random(p.height);
+    const size = p.random(50, 200) * heightFactor;
+    const color = bgColors[Math.floor(p.random(bgColors.length))];
+    p.noStroke();
+    p.fill(color[0], color[1], color[2], p.random(20, 50));
+    p.ellipse(x, y, size, size * p.random(0.7, 1.3));
+  }
+  const planetCount = 1 + Math.floor(heightFactor * 2);
+  for (let i = 0; i < planetCount; i++) {
+    const x = p.random(p.width * 0.2, p.width * 0.8);
+    const y = p.random(p.height * 0.2, p.height * 0.8);
+    const size = p.random(50, 150) * heightFactor;
+    const color1 = bgColors[Math.floor(p.random(bgColors.length))];
+    const color2 = bgColors[Math.floor(p.random(bgColors.length))];
+    for (let r = size / 2; r > 0; r -= 1) {
+      const inter = p.map(r, 0, size / 2, 0, 1);
+      const c = p.lerpColor(p.color(color1[0], color1[1], color1[2]), p.color(color2[0], color2[1], color2[2]), inter);
+      p.fill(c);
+      p.ellipse(x, y, r * 2, r * 2);
+    }
+    if (p.random() > 0.6) {
+      p.noFill();
+      p.stroke(255, 255, 255, 50);
+      p.strokeWeight(2);
+      p.ellipse(x, y, size * 1.5, size * 0.5);
+    }
+  }
+  if (heightFactor > 0.7) {
+    const cometCount = 1 + Math.floor(heightFactor * 2);
+    for (let i = 0; i < cometCount; i++) {
+      const x1 = p.random(p.width);
+      const y1 = p.random(p.height);
+      const angle = p.random(p.TWO_PI);
+      const length = p.random(30, 60);
+      const x2 = x1 + p.cos(angle) * length;
+      const y2 = y1 + p.sin(angle) * length;
+      for (let t = 0; t < 1; t += 0.1) {
+        const inter = p.lerp(x1, x2, t);
+        const interY = p.lerp(y1, y2, t);
+        p.fill(255, 255, 255, p.lerp(150, 0, t));
+        p.noStroke();
+        p.ellipse(inter, interY, 3, 3);
+      }
+    }
+  }
+}
+
+function drawFire(p, heightFactor) {
+  // Fiery background gradient
+  for (let y = 0; y < p.height; y++) {
+    const inter = p.map(y, 0, p.height, 0, 1);
+    const c = p.lerpColor(p.color(74, 14, 14), p.color(26, 26, 26), inter);
+    p.stroke(c);
+    p.line(0, y, p.width, y);
+  }
+  // Embers
+  const emberCount = 50 + Math.floor(heightFactor * 100);
+  for (let i = 0; i < emberCount; i++) {
+    const x = p.random(p.width);
+    const y = p.random(p.height);
+    const size = p.random(1, 5);
+    const opacity = p.random(50, 100);
+    p.noStroke();
+    p.fill(255, p.random(140, 255), 0, opacity);
+    p.ellipse(x, y, size, size);
+  }
+  // Flames
+  const flameCount = 5 + Math.floor(heightFactor * 15);
+  const bgColors = [
+    [255, 245, 200], [255, 200, 220], [255, 235, 205]
+  ];
+  for (let i = 0; i < flameCount; i++) {
+    const x = p.random(p.width);
+    const baseY = p.height * p.random(0.7, 1);
+    const height = p.random(50, 150) * heightFactor;
+    const width = height * p.random(0.3, 0.5);
+    const color = bgColors[Math.floor(p.random(bgColors.length))];
+    p.noStroke();
+    p.fill(color[0], color[1] - 50, color[2] - 100, p.random(20, 50));
+    p.beginShape();
+    p.vertex(x - width, baseY);
+    p.vertex(x + width, baseY);
+    p.vertex(x + width * 0.5, baseY - height * 0.7);
+    p.vertex(x, baseY - height);
+    p.vertex(x - width * 0.5, baseY - height * 0.7);
+    p.endShape(p.CLOSE);
+  }
+  // Smoke
+  if (heightFactor > 0.6) {
+    const smokeCount = 3 + Math.floor(heightFactor * 7);
+    for (let i = 0; i < smokeCount; i++) {
+      const x = p.random(p.width);
+      const y = p.random(p.height * 0.2, p.height * 0.5);
+      const size = p.random(50, 150) * heightFactor;
+      p.noStroke();
+      p.fill(211, 211, 211, p.random(10, 30));
+      p.ellipse(x, y, size, size * p.random(0.7, 1.3));
+    }
+  }
+}
+
+function drawAqua(p, heightFactor) {
+  // Underwater background gradient
+  for (let y = 0; y < p.height; y++) {
+    const inter = p.map(y, 0, p.height, 0, 1);
+    const c = p.lerpColor(p.color(10, 61, 98), p.color(179, 205, 224), inter);
+    p.stroke(c);
+    p.line(0, y, p.width, y);
+  }
+  // Bubbles
+  const bubbleCount = 30 + Math.floor(heightFactor * 70);
+  for (let i = 0; i < bubbleCount; i++) {
+    const x = p.random(p.width);
+    const y = p.random(p.height);
+    const size = p.random(5, 30) * heightFactor;
+    p.noStroke();
+    p.fill(240, 248, 255, p.random(70, 100));
+    p.ellipse(x, y - size * 0.5, size, size);
+  }
+  // Waves
+  const waveCount = 3 + Math.floor(heightFactor * 7);
+  for (let i = 0; i < waveCount; i++) {
+    const yBase = p.random(p.height * 0.2, p.height * 0.8);
+    p.stroke(70, 130, 180, p.random(20, 50));
+    p.strokeWeight(2);
+    p.noFill();
+    p.beginShape();
+    for (let x = 0; x <= p.width; x += 10) {
+      const y = yBase + p.sin(x * 0.01 + i) * 20 * heightFactor;
+      p.vertex(x, y);
+    }
+    p.endShape();
+  }
+  // Coral/Plants
+  const coralCount = 2 + Math.floor(heightFactor * 6);
+  const bgColors = [
+    [200, 220, 255], [220, 255, 220], [255, 200, 220]
+  ];
+  for (let i = 0; i < coralCount; i++) {
+    const x = p.random(p.width);
+    const baseY = p.height;
+    const height = p.random(50, 150) * heightFactor;
+    const color = bgColors[Math.floor(p.random(bgColors.length))];
+    p.stroke(color[0], color[1], color[2], 150);
+    p.strokeWeight(3);
+    p.noFill();
+    p.beginShape();
+    for (let y = baseY; y > baseY - height; y -= 10) {
+      const offset = p.sin(y * 0.05 + i) * 20 * heightFactor;
+      p.vertex(x + offset, y);
+    }
+    p.endShape();
+  }
+}
+
+function drawFireflies(p, heightFactor) {
+  // Dark blueish-black gradient background
+  for (let y = 0; y < p.height; y++) {
+    const inter = p.map(y, 0, p.height, 0, 1);
+    const c = p.lerpColor(p.color(10, 29, 59), p.color(0, 0, 0), inter);
+    p.stroke(c);
+    p.line(0, y, p.width, y);
+  }
+  // Fireflies
+  const fireflyCount = 50 + Math.floor(heightFactor * 150);
+  const fireflyColors = [
+    [230, 255, 153], // Light lime green
+    [204, 255, 102], // Bright green
+    [153, 255, 204]  // Pale cyan
+  ];
+  for (let i = 0; i < fireflyCount; i++) {
+    const x = p.random(p.width);
+    const y = p.random(p.height);
+    const size = p.random(2, 10) * heightFactor;
+    const opacity = p.random(50, 100);
+    const color = fireflyColors[Math.floor(p.random(fireflyColors.length))];
+    p.noStroke();
+    p.fill(color[0], color[1], color[2], opacity);
+    p.ellipse(x, y, size, size);
+    // Glow trails
+    if (heightFactor > 0.5 && p.random() < 0.3) {
+      const trailLength = p.random(5, 20);
+      const angle = p.random(p.TWO_PI);
+      const x2 = x + p.cos(angle) * trailLength;
+      const y2 = y + p.sin(angle) * trailLength;
+      p.stroke(color[0], color[1], color[2], p.random(20, 40));
+      p.strokeWeight(1);
+      p.line(x, y, x2, y2);
+    }
+  }
+  // Mist
+  if (heightFactor > 0.7) {
+    const mistCount = 3 + Math.floor(heightFactor * 5);
+    for (let i = 0; i < mistCount; i++) {
+      const x = p.random(p.width);
+      const y = p.random(p.height * 0.3, p.height * 0.7);
+      const size = p.random(50, 150) * heightFactor;
+      p.noStroke();
+      p.fill(179, 205, 224, p.random(10, 20));
+      p.ellipse(x, y, size, size * p.random(0.7, 1.3));
+    }
+  }
+}
+
+function drawFlowFields(p, heightFactor) {
+  p.background(245, 245, 245);
+  const particleCount = 100 + Math.floor(heightFactor * 100);
+  const iterations = 20 + Math.floor(heightFactor * 30);
+  const stepSize = 2 + heightFactor * 2;
+  const fieldResolution = 15 + Math.floor(heightFactor * 20);
+  const noiseScale = 0.003 + heightFactor * 0.003;
+  let particles = [];
+  for (let i = 0; i < particleCount; i++) {
+    particles.push({
+      x: p.random(p.width),
+      y: p.random(p.height),
+      colorScheme: Math.floor(p.random(3)),
+      initialX: 0,
+      initialY: 0
+    });
+  }
+  particles.forEach(particle => {
+    particle.initialX = particle.x;
+    particle.initialY = particle.y;
+  });
+  const bgColors = [
+    [200, 220, 255], [255, 245, 200], [220, 255, 220], [255, 200, 220],
+    [230, 230, 230], [240, 230, 240], [255, 235, 205], [240, 248, 255], [220, 220, 220]
+  ];
+  const colorSchemes = [
+    { stroke: (particle, alpha) => {
+        const col = bgColors[Math.floor(p.random(bgColors.length))];
+        return p.color(col[0], col[1], col[2], alpha);
+      }
+    },
+    { stroke: (particle, alpha) => {
+        p.colorMode(p.HSB, 360, 100, 100, 100);
+        const hue = (particle.initialX / p.width * 360) % 360;
+        const col = p.color(hue, 50, 80, alpha);
+        p.colorMode(p.RGB, 255, 255, 255, 255);
+        return col;
+      }
+    },
+    { stroke: (particle, alpha) => {
+        const shade = 100 + p.random(100);
+        return p.color(shade, shade, shade, alpha);
+      }
+    }
+  ];
+  const backgroundColors = [
+    p.color(240, 240, 250, 30), p.color(250, 240, 240, 30), p.color(240, 250, 240, 30),
+    p.color(250, 250, 240, 30), p.color(240, 240, 240, 30)
+  ];
+  function getFlowAngle(x, y, z = 0) {
+    return p.noise(x * noiseScale, y * noiseScale, z * noiseScale) * p.TWO_PI * 2;
+  }
+  if (heightFactor > 0.7) {
+    p.stroke(200, 200, 200, 30);
+    p.strokeWeight(0.5);
+    for (let x = 0; x < p.width; x += fieldResolution) {
+      for (let y = 0; y < p.height; y += fieldResolution) {
+        const angle = getFlowAngle(x, y);
+        const length = fieldResolution * 0.5;
+        p.push();
+        p.translate(x, y);
+        p.rotate(angle);
+        p.line(0, 0, length, 0);
+        p.pop();
+      }
+    }
+  }
+  p.strokeWeight(1 + heightFactor);
+  p.noFill();
+  const bgColorIndex = Math.floor(p.random(backgroundColors.length));
+  p.fill(backgroundColors[bgColorIndex]);
+  p.rect(0, 0, p.width, p.height);
+  particles.forEach(particle => {
+    p.beginShape();
+    let x = particle.x;
+    let y = particle.y;
+    const schemeIndex = Math.min(particle.colorScheme, colorSchemes.length - 1);
+    const alphaStart = 20 + heightFactor * 20;
+    const alphaEnd = 80 + heightFactor * 60;
+    for (let i = 0; i < iterations; i++) {
+      const t = i / iterations;
+      const alpha = p.lerp(alphaStart, alphaEnd, t);
+      const angle = getFlowAngle(x, y, t * 0.1);
+      x += p.cos(angle) * stepSize;
+      y += p.sin(angle) * stepSize;
+      if (x < 0 || x > p.width || y < 0 || y > p.height) continue;
+      p.stroke(colorSchemes[schemeIndex].stroke(particle, alpha));
+      p.vertex(x, y);
+    }
+    p.endShape();
+  });
+  if (heightFactor > 0.4) {
+    p.noStroke();
+    for (let i = 0; i < 10; i++) {
+      const x = p.random(p.width);
+      const y = p.random(p.height);
+      const size = 3 + p.random(10) * heightFactor;
+      const colorIndex = Math.floor(p.random(colorSchemes.length));
+      p.fill(colorSchemes[colorIndex].stroke({initialX: x, initialY: y}, 150));
+      p.circle(x, y, size);
+    }
+  }
+}
+
+function loadPreviousBlocks() {
+  const prevDiv = document.getElementById('previous-blocks');
+  prevDiv.innerHTML = '';
+  fetchPreviousBlocks().then(blocks => {
+    blocks.forEach(block => {
+      const { randomizer, seed } = createRandomizer(block.blockHash, block.blockHeight);
+      const container = document.createElement('div');
+      container.className = 'thumbnail';
+      container.title = `Block ${block.blockHeight}`;
+      prevDiv.appendChild(container);
+      new p5(p => {
+        p.setup = function() {
+          p.createCanvas(100, 100);
+          p.randomSeed(seed);
+          const styles = [
+            'Modern', 'Classical', 'Realist', 'Natural', 'AI-Generated',
+            'Other-Worldly', 'Fractal', 'Surrealist', 'Cyberpunk', 'Expressionist',
+            'Cubist', 'Impressionist', 'Minimalist', 'Pixel', 'Vaporwave',
+            'Glitch', 'Geometric', 'Watercolor', 'Blueprint', 'Stained Glass',
+            'Space', 'Fire', 'Aqua', 'Fireflies', 'Flow Fields'
+          ];
+          const styleIndex = Math.floor(p.random(0, styles.length));
+          const style = styles[styleIndex];
+          console.log(`Thumbnail for block ${block.blockHeight} - Seed: ${seed}, Style: ${style}`);
+          drawArt(p, block.blockHeight, style);
+          container.addEventListener('click', () => {
+            if (mainSketch) {
+              mainSketch.remove();
+            }
+            mainSketch = new p5(p2 => {
+              p2.setup = function() {
+                const canvasSize = window.innerWidth <= 600 ? Math.min(window.innerWidth - 40, 600) : 600;
+                const canvas = p2.createCanvas(canvasSize, canvasSize);
+                canvas.parent('main-canvas');
+                p2.randomSeed(seed);
+                const selectedStyleIndex = Math.floor(p2.random(0, styles.length));
+                const selectedStyle = styles[selectedStyleIndex];
+                console.log(`Main sketch (from thumbnail) - Seed: ${seed}, Style: ${selectedStyle}`);
+                updateInfo(block.blockHash, block.blockHeight, randomizer, selectedStyle);
+                const canvasStyles = ['Standard', 'Circular', 'Framed', 'Divided', 'Layered'];
+                const canvasStyle = canvasStyles[Math.floor(p2.random(0, canvasStyles.length))];
+                setupCanvas(p2, canvasStyle);
+                drawArt(p2, block.blockHeight, selectedStyle);
+              };
+            });
+          });
+        };
+      }, container);
+    });
+  }).catch(error => {
+    console.error('Error rendering previous blocks:', error);
+    prevDiv.innerHTML = '<p>Could not load previous blocks</p>';
+  });
+}
+
+function mainSketchSetup(p) {
+  p.setup = function() {
+    const canvasSize = window.innerWidth <= 600 ? Math.min(window.innerWidth - 40, 600) : 600;
+    const canvas = p.createCanvas(canvasSize, canvasSize);
+    canvas.parent('main-canvas');
+    p.background(255);
+    fetchBlockData().then(({ blockHash, blockHeight }) => {
+      currentBlockHeight = blockHeight;
+      const { randomizer, seed } = createRandomizer(block.blockHash, block.blockHeight);
+      p.randomSeed(seed);
+      const styles = [
+        'Modern', 'Classical', 'Realist', 'Natural', 'AI-Generated',
+        'Other-Worldly', 'Fractal', 'Surrealist', 'Cyberpunk', 'Expressionist',
+        'Cubist', 'Impressionist', 'Minimalist', 'Pixel', 'Vaporwave',
+        'Glitch', 'Geometric', 'Watercolor', 'Blueprint', 'Stained Glass',
+        'Space', 'Fire', 'Aqua', 'Fireflies', 'Flow Fields'
+      ];
+      const styleIndex = Math.floor(p.random(0, styles.length));
+      const style = styles[styleIndex];
+      console.log(`Main sketch - Seed: ${seed}, Style: ${style}`);
+      const infoDiv = document.getElementById('info');
+      if (blockHash.includes('abcdef') || blockHash.length < 30) {
+        infoDiv.innerHTML = `Using generated data (API unavailable)<br>Block Height: ${blockHeight}<br>Block Hash (Last 6): ${blockHash.slice(-6)}<br>Style: ${style}`;
+      } else {
+        updateInfo(blockHash, blockHeight, randomizer, style);
+      }
+      const canvasStyles = ['Standard', 'Circular', 'Framed', 'Divided', 'Layered'];
+      const canvasStyle = canvasStyles[Math.floor(p.random(0, canvasStyles.length))];
+      setupCanvas(p, canvasStyle);
+      drawArt(p, blockHeight, style);
+      startBlockPolling();
+      setFallbackReload();
+      loadPreviousBlocks();
+    }).catch(error => {
+      console.error('Complete failure in setup:', error);
+      const infoDiv = document.getElementById('info');
+      infoDiv.innerHTML = 'Error generating artwork. Using fallback data.';
+      const fallbackHeight = '770000';
+      const fallbackHash = '00000000000000000004a7ade8436b2b15d71302c187926e5c9764369daae94f';
+      const { randomizer, seed } = createRandomizer(fallbackHash, fallbackHeight);
+      p.randomSeed(seed);
+      const style = 'Modern';
+      setupCanvas(p, 'Standard');
+      drawArt(p, fallbackHeight, style);
+      loadPreviousBlocks();
+    });
+  };
+}
+
+mainSketch = new p5(mainSketchSetup);
+</script>
+<script type="text/javascript">
+var sc_project=13122540;
+var sc_invisible=1;
+var sc_security="f13fcede";
+</script>
+<script type="text/javascript" src="https://www.statcounter.com/counter/counter.js" async></script>
+<noscript><div class="statcounter"><a title="Web Analytics Made Easy - Statcounter" href="https://statcounter.com/" target="_blank"><img class="statcounter" src="https://c.statcounter.com/13122540/0/f13fcede/1/" alt="Web Analytics Made Easy - Statcounter" referrerPolicy="no-referrer-when-downgrade"></a></div></noscript>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'939f6ff21e7ec00c',t:'MTc0NjI3MTk0MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+</body>
+</html>
