@@ -7,6 +7,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;700&family=Pacifico&display=swap" rel="stylesheet">
   <style>
+    html {
+      scroll-behavior: smooth;
+    }
     body {
       font-family: 'Lora', serif;
       text-align: center;
@@ -77,6 +80,57 @@
     nav a:hover {
       text-decoration: underline;
     }
+    #create-form-container {
+      margin: 40px auto;
+      max-width: 600px;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    #art-form {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      align-items: center;
+    }
+    #block-number {
+      padding: 8px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      width: 150px;
+      font-family: 'Lora', serif;
+    }
+    #style-select {
+      padding: 8px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      width: 200px;
+      font-family: 'Lora', serif;
+    }
+    #generate-btn {
+      padding: 8px 16px;
+      font-size: 16px;
+      background: #2980b9;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: 'Lora', serif;
+      font-weight: 700;
+    }
+    #generate-btn:hover {
+      background: #2c3e50;
+    }
+    #form-error {
+      margin-top: 10px;
+      font-size: 16px;
+      color: #d32f2f;
+      min-height: 24px;
+    }
     @media screen and (max-width: 600px) {
       #info {
         font-size: 1.2rem;
@@ -90,6 +144,14 @@
       #main-canvas {
         max-width: 100%;
       }
+      #block-number, #style-select {
+        width: 100%;
+        max-width: 300px;
+      }
+      #generate-btn {
+        width: 100%;
+        max-width: 300px;
+      }
     }
   </style>
 </head>
@@ -98,13 +160,49 @@
   <nav>
     <a href="index.html">Home</a>
     <a href="about.html">About</a>
+    <a href="#create-form-container">Create</a>
   </nav>
   <div id="info">Fetching blockchain data...</div>
   <div id="main-canvas"></div>
   <div id="previous-blocks"></div>
   <div id="description">
-    BlockRoss transforms Bitcoin's latest block data into unique art. Each piece is a digital interpretation of blockchain activity. The name is an homage to Bob Ross.
+    BlockRoss transforms Bitcoin's latest block data into unique art. Each piece is a digital interpretation of blockchain activity. The name is an homage to Bob Ross. While the artwork is randomly generated, it’s deterministic. Using the same block number and art style will always produce the identical piece.
     <a href="about.html">Learn more about this project</a>.
+  </div>
+  <div id="create-form-container">
+    <form id="art-form">
+      <input type="text" id="block-number" placeholder="Enter block number" required>
+      <select id="style-select" required>
+        <option value="" disabled selected>Select an art style</option>
+        <option value="AI-Generated">AI-Generated</option>
+        <option value="Aqua">Aqua</option>
+        <option value="Blueprint">Blueprint</option>
+        <option value="Classical">Classical</option>
+        <option value="Cubist">Cubist</option>
+        <option value="Cyberpunk">Cyberpunk</option>
+        <option value="Expressionist">Expressionist</option>
+        <option value="Fire">Fire</option>
+        <option value="Fireflies">Fireflies</option>
+        <option value="Flow Fields">Flow Fields</option>
+        <option value="Fractal">Fractal</option>
+        <option value="Geometric">Geometric</option>
+        <option value="Glitch">Glitch</option>
+        <option value="Impressionist">Impressionist</option>
+        <option value="Minimalist">Minimalist</option>
+        <option value="Modern">Modern</option>
+        <option value="Natural">Natural</option>
+        <option value="Other-Worldly">Other-Worldly</option>
+        <option value="Pixel">Pixel</option>
+        <option value="Realist">Realist</option>
+        <option value="Space">Space</option>
+        <option value="Stained Glass">Stained Glass</option>
+        <option value="Surrealist">Surrealist</option>
+        <option value="Vaporwave">Vaporwave</option>
+        <option value="Watercolor">Watercolor</option>
+      </select>
+      <button type="submit" id="generate-btn">Create Art</button>
+    </form>
+    <div id="form-error"></div>
   </div>
   <script>
     const gradients = [
@@ -132,19 +230,17 @@
       }
     }
 
-    async function fetchBlockData() {
+    async function fetchBlockData(blockHeight) {
       try {
-        const hashResponse = await fetchWithTimeout('https://mempool.space/api/blocks/tip/hash');
-        const blockHash = await hashResponse.text();
-        const heightResponse = await fetchWithTimeout('https://mempool.space/api/blocks/tip/height');
-        const blockHeight = await heightResponse.text();
+        const response = await fetchWithTimeout(`https://mempool.space/api/block-height/${blockHeight}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        const blockHash = await response.text();
         return { blockHash, blockHeight };
       } catch (error) {
         console.error('Error fetching block data:', error);
-        const fallbackHash = '000000000000000000' + Math.random().toString(16).substr(2, 8);
-        const fallbackHeight = Math.floor(700000 + Math.random() * 50000).toString();
-        console.log('Using fallback data:', fallbackHash, fallbackHeight);
-        return { blockHash: fallbackHash, blockHeight: fallbackHeight };
+        throw error;
       }
     }
 
@@ -331,7 +427,6 @@
         throw error;
       }
 
-      // Ensure context is restored
       while (p.drawingContext._stack && p.drawingContext._stack.length > 0) {
         p.drawingContext.restore();
         console.log('Restored canvas context');
@@ -960,23 +1055,21 @@
     function drawFireflies(p, heightFactor) {
       console.log(`Drawing Fireflies: heightFactor=${heightFactor}, canvas=${p.width}x${p.height}`);
       try {
-        // Dark blue to black gradient background
         for (let y = 0; y < p.height; y++) {
           const inter = p.map(y, 0, p.height, 0, 1);
           const c = p.lerpColor(p.color(10, 20, 40), p.color(0, 0, 0), inter);
           p.stroke(c);
           p.line(0, y, p.width, y);
         }
-        // Luminescent fireflies
-        const fireflyCount = Math.floor(20 + heightFactor * 50); // 20–70 fireflies
+        const fireflyCount = Math.floor(20 + heightFactor * 50);
         const fireflyColors = [
-          [200, 255, 150], // Light green
-          [150, 255, 200]  // Pale cyan
+          [200, 255, 150],
+          [150, 255, 200]
         ];
         for (let i = 0; i < fireflyCount; i++) {
           const x = p.random(p.width);
           const y = p.random(p.height);
-          const size = p.random(2, 6) * (p.width <= 100 ? 0.5 : 1); // Smaller for thumbnails
+          const size = p.random(2, 6) * (p.width <= 100 ? 0.5 : 1);
           const opacity = p.random(50, 150);
           const color = fireflyColors[Math.floor(p.random(fireflyColors.length))];
           p.noStroke();
@@ -1031,7 +1124,7 @@
           }
           p.createCanvas(canvasWidth, canvasHeight);
           p.noLoop();
-          const blockData = await fetchBlockData();
+          const blockData = await fetchBlockData(currentBlockHeight || (await fetchBlockHeight()));
           currentBlockHeight = blockData.blockHeight;
           const { randomizer, seed } = createRandomizer(blockData.blockHash, blockData.blockHeight);
           p.randomSeed(seed);
@@ -1144,6 +1237,61 @@
         }, previousBlocksDiv);
       }
     }
+
+    document.getElementById('art-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const blockNumber = document.getElementById('block-number').value.trim();
+      const style = document.getElementById('style-select').value;
+      const errorDiv = document.getElementById('form-error');
+      errorDiv.textContent = '';
+
+      if (!/^\d+$/.test(blockNumber)) {
+        errorDiv.textContent = 'Please enter a valid block number (numeric only).';
+        return;
+      }
+
+      const maxBlockHeight = 900000;
+      if (parseInt(blockNumber) > maxBlockHeight) {
+        errorDiv.textContent = 'Block number is too high. Please enter a mined block number.';
+        return;
+      }
+
+      if (!style) {
+        errorDiv.textContent = 'Please select an art style.';
+        return;
+      }
+
+      try {
+        const blockData = await fetchBlockData(blockNumber);
+        const { randomizer, seed } = createRandomizer(blockData.blockHash, blockData.blockHeight);
+
+        if (mainSketch) {
+          mainSketch.remove();
+        }
+
+        mainSketch = new p5((p) => {
+          p.setup = () => {
+            let canvasWidth = 600;
+            let canvasHeight = 600;
+            if (window.innerWidth < 600) {
+              canvasWidth = window.innerWidth - 40;
+              canvasHeight = canvasWidth;
+            }
+            p.createCanvas(canvasWidth, canvasHeight);
+            p.noLoop();
+            p.randomSeed(seed);
+            const canvasStyles = ['Standard', 'Circular', 'Framed', 'Divided', 'Layered'];
+            const canvasStyle = p.random(canvasStyles);
+            updateInfo(blockData.blockHash, blockData.blockHeight, randomizer, style);
+            setupCanvas(p, canvasStyle, blockData.blockHeight);
+            drawArt(p, blockData.blockHeight, style);
+          };
+        }, document.getElementById('main-canvas'));
+      } catch (error) {
+        console.error('Error generating custom artwork:', error);
+        errorDiv.textContent = 'Failed to fetch block data. Please try another block number.';
+      }
+    });
 
     mainSketch = new p5(mainSketchSetup, document.getElementById('main-canvas'));
   </script>

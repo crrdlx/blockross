@@ -7,6 +7,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;700&family=Pacifico&display=swap" rel="stylesheet">
   <style>
+    html {
+      scroll-behavior: smooth;
+    }
     body {
       font-family: 'Lora', serif;
       text-align: center;
@@ -157,16 +160,14 @@
   <nav>
     <a href="index.html">Home</a>
     <a href="about.html">About</a>
+    <a href="#create-form-container">Create</a>
   </nav>
   <div id="info">Fetching blockchain data...</div>
   <div id="main-canvas"></div>
   <div id="previous-blocks"></div>
   <div id="description">
-    BlockRoss transforms Bitcoin's latest block data into unique art. Each piece is a digital interpretation of blockchain activity. The name is an homage to Bob Ross.
+    BlockRoss transforms Bitcoin's latest block data into unique art. Each piece is a digital interpretation of blockchain activity. The name is an homage to Bob Ross. While the artwork is randomly generated, it’s deterministic. Using the same block number and art style will always produce the identical piece.
     <a href="about.html">Learn more about this project</a>.
-  </div>
-  <div class="art-style">
-    <h3>Create your own art</h3>
   </div>
   <div id="create-form-container">
     <form id="art-form">
@@ -683,7 +684,7 @@
       }
       p.fill(255, 50, 150);
       p.noStroke();
-      p.ellipse[p.width/2, p.height/2, 200 * heightFactor, 200 * heightFactor];
+      p.ellipse(p.width/2, p.height/2, 200 * heightFactor, 200 * heightFactor);
       for (let i = 0; i < 10; i++) {
         p.fill(0, 255, 255, 150);
         p.rect(p.random(p.width), p.random(p.height), 50, 50);
@@ -1237,7 +1238,6 @@
       }
     }
 
-    // Form submission handler
     document.getElementById('art-form').addEventListener('submit', async (event) => {
       event.preventDefault();
       const blockNumber = document.getElementById('block-number').value.trim();
@@ -1245,13 +1245,12 @@
       const errorDiv = document.getElementById('form-error');
       errorDiv.textContent = '';
 
-      // Validate input
       if (!/^\d+$/.test(blockNumber)) {
         errorDiv.textContent = 'Please enter a valid block number (numeric only).';
         return;
       }
 
-      const maxBlockHeight = 900000; // Approximate as of May 2025
+      const maxBlockHeight = 900000;
       if (parseInt(blockNumber) > maxBlockHeight) {
         errorDiv.textContent = 'Block number is too high. Please enter a mined block number.';
         return;
@@ -1266,12 +1265,10 @@
         const blockData = await fetchBlockData(blockNumber);
         const { randomizer, seed } = createRandomizer(blockData.blockHash, blockData.blockHeight);
 
-        // Remove existing main sketch
         if (mainSketch) {
           mainSketch.remove();
         }
 
-        // Create new main sketch with user input
         mainSketch = new p5((p) => {
           p.setup = () => {
             let canvasWidth = 600;
