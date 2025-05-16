@@ -171,7 +171,7 @@
   </div>
   <div id="create-form-container">
     <form id="art-form">
-      <input type="text" id="block-number" placeholder="Enter block number" required>
+      <input type="text" id="block-number" placeholder="Block number" required>
       <select id="style-select" required>
         <option value="" disabled selected>Select an art style</option>
         <option value="AI-Generated">AI-Generated</option>
@@ -199,6 +199,7 @@
         <option value="Surrealist">Surrealist</option>
         <option value="Vaporwave">Vaporwave</option>
         <option value="Watercolor">Watercolor</option>
+        <option value="Words">Words</option>
       </select>
       <button type="submit" id="generate-btn">Create Art</button>
     </form>
@@ -420,6 +421,7 @@
           case 'Aqua': drawAqua(p, heightFactor); break;
           case 'Fireflies': drawFireflies(p, heightFactor); break;
           case 'Flow Fields': drawFlowFields(p, heightFactor); break;
+          case 'Words': drawWords(p, heightFactor); break;
           default: drawModern(p, heightFactor);
         }
       } catch (error) {
@@ -871,7 +873,7 @@
         for (let j = i + 1; j < points.length; j++) {
           const midX = (points[i].x + points[j].x) / 2;
           const midY = (points[i].y + points[j].y) / 2;
-          if (p.dist(points[i].x, points[i].y, points[j].x, points[j].y) < 150) {
+          if (p.dist(points[i].x, points[i].y, points[j].x,	points[j].y) < 150) {
             p.stroke(0);
             p.strokeWeight(2);
             p.line(points[i].x, points[i].y, midX, midY);
@@ -1112,6 +1114,116 @@
       }
     }
 
+    function drawWords(p, heightFactor) {
+      const wordList = [
+        'home', 'love', 'sun', 'moon', 'star', 'tree', 'sky', 'cloud',
+        'rain', 'wind', 'sea', 'wave', 'sand', 'hill', 'path', 'road',
+        'house', 'door', 'window', 'light', 'fire', 'heart', 'smile', 'tear',
+        'hope', 'dream', 'day', 'night', 'dawn', 'dusk', 'time', 'life',
+        'friend', 'family', 'child', 'play', 'laugh', 'song', 'dance', 'food',
+        'bread', 'water', 'coffee', 'tea', 'book', 'page', 'word', 'story',
+        'pen', 'paper', 'chair', 'table', 'bed', 'rest', 'walk', 'run',
+        'city', 'town', 'street', 'park', 'flower', 'bird', 'cat', 'dog',
+        'fish', 'boat', 'car', 'bike', 'bus', 'train', 'plane', 'bridge',
+        'river', 'lake', 'snow', 'ice', 'heat', 'cold', 'spring', 'summer',
+        'fall', 'winter', 'mountain', 'valley', 'forest', 'meadow', 'grass',
+        'stone', 'rock', 'dust', 'shadow', 'glow', 'peace', 'joy', 'calm',
+        'work', 'game', 'gift', 'moment'
+      ];
+      const numWords = 1 + Math.floor(heightFactor * 19);
+      const placedWords = [];
+      const margin = 20;
+      const maxAttempts = 10;
+
+      // Background colors (darker, desaturated for contrast)
+      const bgColors = [
+        [120, 140, 180], [160, 140, 100], [120, 160, 120], [160, 100, 120],
+        [140, 140, 140], [130, 120, 140], [160, 140, 100], [140, 150, 160]
+      ];
+      const bgColor = p.random(bgColors);
+      p.background(bgColor[0], bgColor[1], bgColor[2]);
+
+      // Text colors (high contrast)
+      const textColors = [
+        [255, 255, 255], // White
+        [0, 0, 0],      // Black
+        [255, 50, 50],  // Red
+        [50, 50, 255],  // Blue
+        [255, 255, 50]  // Yellow
+      ];
+
+      // Calculate background luminance
+      const luminance = 0.299 * bgColor[0] + 0.587 * bgColor[1] + 0.114 * bgColor[2];
+      // Choose text colors based on background luminance
+      const availableTextColors = luminance < 128 ? 
+        textColors.filter(c => c[0] + c[1] + c[2] > 400) : // Light colors for dark bg
+        textColors.filter(c => c[0] + c[1] + c[2] < 400);  // Dark colors for light bg
+
+      p.textFont('Lora');
+      p.textAlign(p.CENTER, p.CENTER);
+
+      for (let i = 0; i < numWords; i++) {
+        const word = wordList[Math.floor(p.random(wordList.length))];
+        const fontSize = p.random(20, 60) * (p.width <= 100 ? 0.5 : 1);
+        const rotation = p.random(-15, 15);
+        p.textSize(fontSize);
+        const textWidth = p.textWidth(word);
+        const textHeight = fontSize * 1.2;
+
+        let placed = false;
+        let attempts = 0;
+
+        while (!placed && attempts < maxAttempts) {
+          const x = p.random(margin, p.width - margin);
+          const y = p.random(margin, p.height - margin);
+
+          const cosR = Math.cos(p.radians(rotation));
+          const sinR = Math.sin(p.radians(rotation));
+          const w = Math.abs(textWidth * cosR) + Math.abs(textHeight * sinR);
+          const h = Math.abs(textWidth * sinR) + Math.abs(textHeight * cosR);
+          const boundingBox = {
+            x: x - w / 2,
+            y: y - h / 2,
+            w: w,
+            h: h
+          };
+
+          let overlap = false;
+          for (const other of placedWords) {
+            if (
+              boundingBox.x < other.x + other.w &&
+              boundingBox.x + boundingBox.w > other.x &&
+              boundingBox.y < other.y + other.h &&
+              boundingBox.y + boundingBox.h > other.y
+            ) {
+              overlap = true;
+              break;
+            }
+          }
+
+          if (!overlap) {
+            const textColor = p.random(availableTextColors);
+            p.push();
+            p.translate(x, y);
+            p.rotate(p.radians(rotation));
+            p.fill(textColor[0], textColor[1], textColor[2], 255); // Full opacity
+            p.noStroke();
+            p.text(word, 0, 0);
+            p.pop();
+
+            placedWords.push({
+              x: boundingBox.x,
+              y: boundingBox.y,
+              w: boundingBox.w,
+              h: boundingBox.h
+            });
+            placed = true;
+          }
+          attempts++;
+        }
+      }
+    }
+
     function mainSketchSetup(p) {
       p.setup = async () => {
         console.log('Main sketch setup');
@@ -1133,7 +1245,7 @@
             'Cyberpunk', 'Expressionist', 'Fire', 'Fireflies', 'Flow Fields',
             'Fractal', 'Geometric', 'Glitch', 'Impressionist', 'Minimalist',
             'Modern', 'Natural', 'Other-Worldly', 'Pixel', 'Realist',
-            'Space', 'Stained Glass', 'Surrealist', 'Vaporwave', 'Watercolor'
+            'Space', 'Stained Glass', 'Surrealist', 'Vaporwave', 'Watercolor', 'Words'
           ];
           const canvasStyles = ['Standard', 'Circular', 'Framed', 'Divided', 'Layered'];
           const style = p.random(styles);
@@ -1156,7 +1268,7 @@
             'Cyberpunk', 'Expressionist', 'Fire', 'Fireflies', 'Flow Fields',
             'Fractal', 'Geometric', 'Glitch', 'Impressionist', 'Minimalist',
             'Modern', 'Natural', 'Other-Worldly', 'Pixel', 'Realist',
-            'Space', 'Stained Glass', 'Surrealist', 'Vaporwave', 'Watercolor'
+            'Space', 'Stained Glass', 'Surrealist', 'Vaporwave', 'Watercolor', 'Words'
           ];
           const canvasStyles = ['Standard', 'Circular', 'Framed', 'Divided', 'Layered'];
           const style = p.random(styles);
@@ -1186,7 +1298,7 @@
                 'Cyberpunk', 'Expressionist', 'Fire', 'Fireflies', 'Flow Fields',
                 'Fractal', 'Geometric', 'Glitch', 'Impressionist', 'Minimalist',
                 'Modern', 'Natural', 'Other-Worldly', 'Pixel', 'Realist',
-                'Space', 'Stained Glass', 'Surrealist', 'Vaporwave', 'Watercolor'
+                'Space', 'Stained Glass', 'Surrealist', 'Vaporwave', 'Watercolor', 'Words'
               ];
               const canvasStyles = ['Standard', 'Circular', 'Framed', 'Divided', 'Layered'];
               const style = p.random(styles);
@@ -1218,7 +1330,7 @@
                       'Cyberpunk', 'Expressionist', 'Fire', 'Fireflies', 'Flow Fields',
                       'Fractal', 'Geometric', 'Glitch', 'Impressionist', 'Minimalist',
                       'Modern', 'Natural', 'Other-Worldly', 'Pixel', 'Realist',
-                      'Space', 'Stained Glass', 'Surrealist', 'Vaporwave', 'Watercolor'
+                      'Space', 'Stained Glass', 'Surrealist', 'Vaporwave', 'Watercolor', 'Words'
                     ];
                     const canvasStyles = ['Standard', 'Circular', 'Framed', 'Divided', 'Layered'];
                     const style = p.random(styles);
@@ -1250,8 +1362,7 @@
         return;
       }
 
-      const maxBlockHeight = 900000;
-      if (parseInt(blockNumber) > maxBlockHeight) {
+      if (parseInt(blockNumber) > 900000) {
         errorDiv.textContent = 'Block number is too high. Please enter a mined block number.';
         return;
       }
