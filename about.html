@@ -214,7 +214,7 @@
   <div class="art-style">
   <h3>Cubist</h3>
   <p>
-    Fragmented planes in bold colors overlap to form abstract shapes, twisting perspectives in a nod to Picasso’s playful geometry.
+    Fragmented planes in bold colors overlap to form abstract shapes, twisting perspectives in a nod to Picasso's playful geometry.
   </p>
   </div>
   <div class="art-style">
@@ -269,6 +269,12 @@
   <h3>Impressionist</h3>
   <p>
     Small, visible brushstrokes that form a cohesive whole, inspired by the 19th-century art movement.
+  </p>
+  </div>
+  <div class="art-style">
+  <h3>Matrix</h3>
+  <p>
+    A digital rain of glowing green characters cascades down a dark canvas, creating an iconic cyberpunk aesthetic inspired by the Matrix movies.
   </p>
   </div>
   <div class="art-style">
@@ -413,7 +419,7 @@
     window.onload = function() {
       const examplesContainer = document.getElementById('art-examples');
       const styles = [
-        'Modern', 'Impressionist', 'Cubist', 'Vaporwave', 'Stained Glass', 'Blueprint'
+        'Modern', 'Impressionist', 'Cubist', 'Vaporwave', 'Stained Glass', 'Blueprint', 'Matrix'
       ];
       
       styles.forEach((style, index) => {
@@ -566,6 +572,70 @@
               for (let i = 0; i < 10; i++) {
                 p.point(p.random(p.width), p.random(p.height));
               }
+            } else if (style === 'Matrix') {
+              // Matrix-style digital rain
+              p.background(0);
+              
+              // Characters
+              const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+              const fontSize = 12;
+              p.textSize(fontSize);
+              
+              // Create columns of falling characters
+              const columnCount = Math.floor(p.width / (fontSize * 0.6));
+              const columns = [];
+              
+              // Initialize columns
+              for (let i = 0; i < columnCount; i++) {
+                columns.push({
+                  x: i * fontSize * 0.6,
+                  y: p.random(-p.height, 0),
+                  speed: p.random(1, 2),
+                  length: Math.floor(p.random(5, 10))
+                });
+              }
+              
+              // Draw and update columns
+              for (let col of columns) {
+                // Draw characters in column
+                for (let i = 0; i < col.length; i++) {
+                  const y = col.y + i * fontSize;
+                  if (y >= 0 && y < p.height) {
+                    // Fade out characters based on position in column
+                    const alpha = p.map(i, 0, col.length, 255, 50);
+                    p.fill(0, 255, 0, alpha);
+                    const char = chars[Math.floor(p.random(chars.length))];
+                    p.text(char, col.x, y);
+                  }
+                }
+                
+                // Update column position
+                col.y += col.speed;
+                
+                // Reset column when it goes off screen
+                if (col.y > p.height) {
+                  col.y = -col.length * fontSize;
+                  col.length = Math.floor(p.random(5, 10));
+                  col.speed = p.random(1, 2);
+                }
+              }
+              
+              // Add some glowing effects
+              p.drawingContext.shadowBlur = 5;
+              p.drawingContext.shadowColor = 'rgba(0, 255, 0, 0.5)';
+              
+              // Add some random bright spots
+              for (let i = 0; i < 3; i++) {
+                const x = p.random(p.width);
+                const y = p.random(p.height);
+                const size = p.random(2, 4);
+                p.fill(0, 255, 0, 200);
+                p.noStroke();
+                p.ellipse(x, y, size, size);
+              }
+              
+              // Reset shadow
+              p.drawingContext.shadowBlur = 0;
             }
           }
         }, container);

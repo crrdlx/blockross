@@ -324,6 +324,7 @@
           case 'Aqua': drawAqua(p, heightFactor); break;
           case 'Fireflies': drawFireflies(p, heightFactor); break;
           case 'Flow Fields': drawFlowFields(p, heightFactor); break;
+          case 'Matrix': drawMatrix(p, heightFactor); break;
           default: drawModern(p, heightFactor);
         }
       } catch (error) {
@@ -1019,6 +1020,74 @@
       }
     }
 
+    function drawMatrix(p, heightFactor) {
+      // Dark background
+      p.background(0, 0, 0);
+      
+      // Matrix characters
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      const fontSize = 12 + Math.floor(heightFactor * 8);
+      p.textSize(fontSize);
+      p.fill(0, 255, 0);
+      
+      // Create columns of falling characters
+      const columnCount = Math.floor(p.width / (fontSize * 0.6));
+      const columns = [];
+      
+      // Initialize columns
+      for (let i = 0; i < columnCount; i++) {
+        columns.push({
+          x: i * fontSize * 0.6,
+          y: p.random(-p.height, 0),
+          speed: p.random(1, 3),
+          length: Math.floor(p.random(5, 15))
+        });
+      }
+      
+      // Draw and update columns
+      for (let col of columns) {
+        // Draw characters in column
+        for (let i = 0; i < col.length; i++) {
+          const y = col.y + i * fontSize;
+          if (y >= 0 && y < p.height) {
+            // Fade out characters based on position in column
+            const alpha = p.map(i, 0, col.length, 255, 50);
+            p.fill(0, 255, 0, alpha);
+            const char = chars[Math.floor(p.random(chars.length))];
+            p.text(char, col.x, y);
+          }
+        }
+        
+        // Update column position
+        col.y += col.speed;
+        
+        // Reset column when it goes off screen
+        if (col.y > p.height) {
+          col.y = -col.length * fontSize;
+          col.length = Math.floor(p.random(5, 15));
+          col.speed = p.random(1, 3);
+        }
+      }
+      
+      // Add some glowing effects
+      p.drawingContext.shadowBlur = 10;
+      p.drawingContext.shadowColor = 'rgba(0, 255, 0, 0.5)';
+      
+      // Add some random bright spots
+      const spotCount = Math.floor(3 + heightFactor * 5);
+      for (let i = 0; i < spotCount; i++) {
+        const x = p.random(p.width);
+        const y = p.random(p.height);
+        const size = p.random(2, 6);
+        p.fill(0, 255, 0, 200);
+        p.noStroke();
+        p.ellipse(x, y, size, size);
+      }
+      
+      // Reset shadow
+      p.drawingContext.shadowBlur = 0;
+    }
+
     function mainSketchSetup(p) {
       p.setup = async () => {
         console.log('Main sketch setup');
@@ -1038,8 +1107,8 @@
           const styles = [
             'AI-Generated', 'Aqua', 'Blueprint', 'Classical', 'Cubist',
             'Cyberpunk', 'Expressionist', 'Fire', 'Fireflies', 'Flow Fields',
-            'Fractal', 'Geometric', 'Glitch', 'Impressionist', 'Minimalist',
-            'Modern', 'Natural', 'Other-Worldly', 'Pixel', 'Realist',
+            'Fractal', 'Geometric', 'Glitch', 'Impressionist', 'Matrix',
+            'Minimalist', 'Modern', 'Natural', 'Other-Worldly', 'Pixel', 'Realist',
             'Space', 'Stained Glass', 'Surrealist', 'Vaporwave', 'Watercolor'
           ];
           const canvasStyles = ['Standard', 'Circular', 'Framed', 'Divided', 'Layered'];
@@ -1061,8 +1130,8 @@
           const styles = [
             'AI-Generated', 'Aqua', 'Blueprint', 'Classical', 'Cubist',
             'Cyberpunk', 'Expressionist', 'Fire', 'Fireflies', 'Flow Fields',
-            'Fractal', 'Geometric', 'Glitch', 'Impressionist', 'Minimalist',
-            'Modern', 'Natural', 'Other-Worldly', 'Pixel', 'Realist',
+            'Fractal', 'Geometric', 'Glitch', 'Impressionist', 'Matrix',
+            'Minimalist', 'Modern', 'Natural', 'Other-Worldly', 'Pixel', 'Realist',
             'Space', 'Stained Glass', 'Surrealist', 'Vaporwave', 'Watercolor'
           ];
           const canvasStyles = ['Standard', 'Circular', 'Framed', 'Divided', 'Layered'];
@@ -1091,8 +1160,8 @@
               const styles = [
                 'AI-Generated', 'Aqua', 'Blueprint', 'Classical', 'Cubist',
                 'Cyberpunk', 'Expressionist', 'Fire', 'Fireflies', 'Flow Fields',
-                'Fractal', 'Geometric', 'Glitch', 'Impressionist', 'Minimalist',
-                'Modern', 'Natural', 'Other-Worldly', 'Pixel', 'Realist',
+                'Fractal', 'Geometric', 'Glitch', 'Impressionist', 'Matrix',
+                'Minimalist', 'Modern', 'Natural', 'Other-Worldly', 'Pixel', 'Realist',
                 'Space', 'Stained Glass', 'Surrealist', 'Vaporwave', 'Watercolor'
               ];
               const canvasStyles = ['Standard', 'Circular', 'Framed', 'Divided', 'Layered'];
@@ -1123,8 +1192,8 @@
                     const styles = [
                       'AI-Generated', 'Aqua', 'Blueprint', 'Classical', 'Cubist',
                       'Cyberpunk', 'Expressionist', 'Fire', 'Fireflies', 'Flow Fields',
-                      'Fractal', 'Geometric', 'Glitch', 'Impressionist', 'Minimalist',
-                      'Modern', 'Natural', 'Other-Worldly', 'Pixel', 'Realist',
+                      'Fractal', 'Geometric', 'Glitch', 'Impressionist', 'Matrix',
+                      'Minimalist', 'Modern', 'Natural', 'Other-Worldly', 'Pixel', 'Realist',
                       'Space', 'Stained Glass', 'Surrealist', 'Vaporwave', 'Watercolor'
                     ];
                     const canvasStyles = ['Standard', 'Circular', 'Framed', 'Divided', 'Layered'];
