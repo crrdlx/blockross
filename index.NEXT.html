@@ -7,6 +7,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;700&family=Pacifico&display=swap" rel="stylesheet">
   <style>
+    html {
+      scroll-behavior: smooth;
+    }
     body {
       font-family: 'Lora', serif;
       text-align: center;
@@ -157,20 +160,18 @@
   <nav>
     <a href="index.html">Home</a>
     <a href="about.html">About</a>
+    <a href="#create-form-container">Create</a>
   </nav>
   <div id="info">Fetching blockchain data...</div>
   <div id="main-canvas"></div>
   <div id="previous-blocks"></div>
   <div id="description">
-    BlockRoss transforms Bitcoin's latest block data into unique art. Each piece is a digital interpretation of blockchain activity. The name is an homage to Bob Ross.
+    BlockRoss transforms Bitcoin's latest block data into unique art. Each piece is a digital interpretation of blockchain activity. The name is an homage to Bob Ross. While the artwork is randomly generated, it’s deterministic. Using the same block number and art style will always produce the identical piece.
     <a href="about.html">Learn more about this project</a>.
-  </div>
-  <div class="art-style">
-    <h3>Create your own art</h3>
   </div>
   <div id="create-form-container">
     <form id="art-form">
-      <input type="text" id="block-number" placeholder="Enter block number" required>
+      <input type="text" id="block-number" placeholder="Block number" required>
       <select id="style-select" required>
         <option value="" disabled selected>Select an art style</option>
         <option value="AI-Generated">AI-Generated</option>
@@ -198,6 +199,7 @@
         <option value="Surrealist">Surrealist</option>
         <option value="Vaporwave">Vaporwave</option>
         <option value="Watercolor">Watercolor</option>
+        <option value="Words">Words</option>
       </select>
       <button type="submit" id="generate-btn">Create Art</button>
     </form>
@@ -323,61 +325,75 @@
     function setupCanvas(p, canvasStyle, blockHeight) {
       console.log(`Setting up canvas: ${canvasStyle} for block ${blockHeight}`);
       try {
+        // Ensure canvas is fully reset before applying new clipping
+        while (p.drawingContext._stack && p.drawingContext._stack.length > 0) {
+          p.drawingContext.restore();
+        }
+        p.drawingContext.save();
+
         if (canvasStyle === 'Standard') {
-          // No clipping
+          // No clipping, full canvas
         } else if (canvasStyle === 'Circular') {
-          p.drawingContext.save();
+          // Clip to a circle, centered and fitting the square canvas
           p.drawingContext.beginPath();
           p.drawingContext.arc(p.width/2, p.height/2, p.min(p.width, p.height)/2, 0, Math.PI*2);
           p.drawingContext.clip();
         } else if (canvasStyle === 'Framed') {
+          // Draw a frame but keep full canvas accessible
           const frameSize = 30;
           p.fill(245, 245, 220);
           p.stroke(139, 69, 19);
           p.strokeWeight(3);
           p.rect(0, 0, p.width, p.height);
-          p.drawingContext.save();
+          // Clip to inner area, but allow drawing in frame
           p.drawingContext.beginPath();
           p.drawingContext.rect(frameSize, frameSize, p.width - frameSize*2, p.height - frameSize*2);
           p.drawingContext.clip();
         } else if (canvasStyle === 'Divided') {
-          p.drawingContext.save();
+          // Draw sections without clipping to ensure full canvas usage
           const sections = 2 + Math.floor(p.random(3));
+          const colors = [
+            [200, 220, 255], [255, 245, 200], [220, 255, 220], [255, 200, 220]
+          ];
           if (p.random() > 0.5) {
+            // Vertical sections
             const sectionWidth = p.width / sections;
             for (let i = 0; i < sections; i++) {
-              p.drawingContext.beginPath();
-              p.drawingContext.rect(i * sectionWidth, 0, sectionWidth, p.height);
-              if (i % 2 === 0) {
-                p.drawingContext.clip();
-              }
+              const color = p.random(colors);
+              p.fill(color[0], color[1], color[2], 50);
+              p.noStroke();
+              p.rect(i * sectionWidth, 0, sectionWidth, p.height);
             }
           } else {
+            // Horizontal sections
             const sectionHeight = p.height / sections;
             for (let i = 0; i < sections; i++) {
-              p.drawingContext.beginPath();
-              p.drawingContext.rect(0, i * sectionHeight, p.width, sectionHeight);
-              if (i % 2 === 0) {
-                p.drawingContext.clip();
-              }
+              const color = p.random(colors);
+              p.fill(color[0], color[1], color[2], 50);
+              p.noStroke();
+              p.rect(0, i * sectionHeight, p.width, sectionHeight);
             }
           }
+          // No clipping, allowing art to span entire canvas
         } else if (canvasStyle === 'Layered') {
-          p.drawingContext.save();
+          // Draw semi-transparent layers across full canvas
           const numLayers = 2 + Math.floor(p.random(2));
           const overlayAlpha = 80 + Math.floor(p.random(40));
-          p.fill(p.random(255), p.random(255), p.random(255), overlayAlpha);
           p.noStroke();
           for (let i = 0; i < numLayers; i++) {
             const x = p.random(-50, 50);
             const y = p.random(-50, 50);
             const w = p.width - Math.abs(x);
             const h = p.height - Math.abs(y);
+            p.fill(p.random(255), p.random(255), p.random(255), overlayAlpha / numLayers);
             p.rect(Math.max(0, x), Math.max(0, y), w, h);
           }
+          // No clipping, full canvas available
         }
       } catch (error) {
         console.error(`Error in setupCanvas for ${canvasStyle}:`, error);
+        // Restore context to prevent canvas corruption
+        p.drawingContext.restore();
         throw error;
       }
     }
@@ -419,6 +435,7 @@
           case 'Aqua': drawAqua(p, heightFactor); break;
           case 'Fireflies': drawFireflies(p, heightFactor); break;
           case 'Flow Fields': drawFlowFields(p, heightFactor); break;
+          case 'Words': drawWords(p, heightFactor); break;
           default: drawModern(p, heightFactor);
         }
       } catch (error) {
@@ -426,6 +443,7 @@
         throw error;
       }
 
+      // Ensure all clipping is cleared
       while (p.drawingContext._stack && p.drawingContext._stack.length > 0) {
         p.drawingContext.restore();
         console.log('Restored canvas context');
@@ -683,7 +701,7 @@
       }
       p.fill(255, 50, 150);
       p.noStroke();
-      p.ellipse[p.width/2, p.height/2, 200 * heightFactor, 200 * heightFactor];
+      p.ellipse(p.width/2, p.height/2, 200 * heightFactor, 200 * heightFactor);
       for (let i = 0; i < 10; i++) {
         p.fill(0, 255, 255, 150);
         p.rect(p.random(p.width), p.random(p.height), 50, 50);
@@ -1111,6 +1129,122 @@
       }
     }
 
+    function drawWords(p, heightFactor) {
+      const wordList = [
+        // Everyday Life (~80)
+        'home', 'love', 'sun', 'moon', 'star', 'tree', 'sky', 'cloud',
+        'rain', 'wind', 'sea', 'wave', 'sand', 'hill', 'path', 'road',
+        'house', 'door', 'window', 'light', 'fire', 'heart', 'smile', 'tear',
+        'hope', 'dream', 'day', 'night', 'dawn', 'dusk', 'time', 'life',
+        'friend', 'family', 'child', 'play', 'laugh', 'song', 'dance', 'food',
+        'bread', 'water', 'coffee', 'tea', 'book', 'page', 'word', 'story',
+        'pen', 'paper', 'chair', 'table', 'bed', 'rest', 'walk', 'run',
+        'city', 'town', 'street', 'park', 'flower', 'bird', 'cat', 'dog',
+        'fish', 'boat', 'car', 'bike', 'bus', 'train', 'plane', 'bridge',
+        'river', 'lake', 'snow', 'ice', 'spring', 'summer', 'fall', 'winter',
+        // Bitcoin/Cypherpunk/Blockchain (~20)
+        'bitcoin', 'block', 'hash', 'chain', 'node', 'cipher', 'key', 'wallet',
+        'mine', 'fork', 'ledger', 'trust', 'crypto', 'peer', 'code', 'hashrate',
+        'sat', 'hodl', 'tx', 'proof',
+        // Art (~20)
+        'art', 'paint', 'brush', 'canvas', 'color', 'shade', 'line', 'form',
+        'shape', 'muse', 'draw', 'sketch', 'tone', 'hue', 'stroke', 'blend',
+        'frame', 'glaze', 'motif', 'style'
+      ];
+      const numWords = 1 + Math.floor(heightFactor * 19);
+      const placedWords = [];
+      const margin = 20;
+      const maxAttempts = 10;
+
+      // Background colors (darker, desaturated for contrast)
+      const bgColors = [
+        [120, 140, 180], [160, 140, 100], [120, 160, 120], [160, 100, 120],
+        [140, 140, 140], [130, 120, 140], [160, 140, 100], [140, 150, 160]
+      ];
+      const bgColor = p.random(bgColors);
+      p.background(bgColor[0], bgColor[1], bgColor[2]);
+
+      // Text colors (high contrast)
+      const textColors = [
+        [255, 255, 255], // White
+        [0, 0, 0],      // Black
+        [255, 50, 50],  // Red
+        [50, 50, 255],  // Blue
+        [255, 255, 50]  // Yellow
+      ];
+
+      // Calculate background luminance
+      const luminance = 0.299 * bgColor[0] + 0.587 * bgColor[1] + 0.114 * bgColor[2];
+      // Choose text colors based on background luminance
+      const availableTextColors = luminance < 128 ? 
+        textColors.filter(c => c[0] + c[1] + c[2] > 400) : // Light colors for dark bg
+        textColors.filter(c => c[0] + c[1] + c[2] < 400);  // Dark colors for light bg
+
+      p.textFont('Lora');
+      p.textAlign(p.CENTER, p.CENTER);
+
+      for (let i = 0; i < numWords; i++) {
+        const word = wordList[Math.floor(p.random(wordList.length))];
+        const fontSize = p.random(20, 60) * (p.width <= 100 ? 0.5 : 1);
+        const rotation = p.random(-15, 15);
+        p.textSize(fontSize);
+        const textWidth = p.textWidth(word);
+        const textHeight = fontSize * 1.2;
+
+        let placed = false;
+        let attempts = 0;
+
+        while (!placed && attempts < maxAttempts) {
+          const x = p.random(margin, p.width - margin);
+          const y = p.random(margin, p.height - margin);
+
+          const cosR = Math.cos(p.radians(rotation));
+          const sinR = Math.sin(p.radians(rotation));
+          const w = Math.abs(textWidth * cosR) + Math.abs(textHeight * sinR);
+          const h = Math.abs(textWidth * sinR) + Math.abs(textHeight * cosR);
+          const boundingBox = {
+            x: x - w / 2,
+            y: y - h / 2,
+            w: w,
+            h: h
+          };
+
+          let overlap = false;
+          for (const other of placedWords) {
+            if (
+              boundingBox.x < other.x + other.w &&
+              boundingBox.x + boundingBox.w > other.x &&
+              boundingBox.y < other.y + other.h &&
+              boundingBox.y + boundingBox.h > other.y
+            ) {
+              overlap = true;
+              break;
+            }
+          }
+
+          if (!overlap) {
+            const textColor = p.random(availableTextColors);
+            p.push();
+            p.translate(x, y);
+            p.rotate(p.radians(rotation));
+            p.fill(textColor[0], textColor[1], textColor[2], 255); // Full opacity
+            p.noStroke();
+            p.text(word, 0, 0);
+            p.pop();
+
+            placedWords.push({
+              x: boundingBox.x,
+              y: boundingBox.y,
+              w: boundingBox.w,
+              h: boundingBox.h
+            });
+            placed = true;
+          }
+          attempts++;
+        }
+      }
+    }
+
     function mainSketchSetup(p) {
       p.setup = async () => {
         console.log('Main sketch setup');
@@ -1119,7 +1253,7 @@
           let canvasHeight = 600;
           if (window.innerWidth < 600) {
             canvasWidth = window.innerWidth - 40;
-            canvasHeight = canvasWidth;
+            canvasHeight = canvasWidth; // Ensure square canvas
           }
           p.createCanvas(canvasWidth, canvasHeight);
           p.noLoop();
@@ -1132,7 +1266,7 @@
             'Cyberpunk', 'Expressionist', 'Fire', 'Fireflies', 'Flow Fields',
             'Fractal', 'Geometric', 'Glitch', 'Impressionist', 'Minimalist',
             'Modern', 'Natural', 'Other-Worldly', 'Pixel', 'Realist',
-            'Space', 'Stained Glass', 'Surrealist', 'Vaporwave', 'Watercolor'
+            'Space', 'Stained Glass', 'Surrealist', 'Vaporwave', 'Watercolor', 'Words'
           ];
           const canvasStyles = ['Standard', 'Circular', 'Framed', 'Divided', 'Layered'];
           const style = p.random(styles);
@@ -1155,7 +1289,7 @@
             'Cyberpunk', 'Expressionist', 'Fire', 'Fireflies', 'Flow Fields',
             'Fractal', 'Geometric', 'Glitch', 'Impressionist', 'Minimalist',
             'Modern', 'Natural', 'Other-Worldly', 'Pixel', 'Realist',
-            'Space', 'Stained Glass', 'Surrealist', 'Vaporwave', 'Watercolor'
+            'Space', 'Stained Glass', 'Surrealist', 'Vaporwave', 'Watercolor', 'Words'
           ];
           const canvasStyles = ['Standard', 'Circular', 'Framed', 'Divided', 'Layered'];
           const style = p.random(styles);
@@ -1177,7 +1311,7 @@
         const p = new p5((p) => {
           p.setup = () => {
             try {
-              p.createCanvas(100, 100);
+              p.createCanvas(100, 100); // Square thumbnails
               p.noLoop();
               p.randomSeed(seed);
               const styles = [
@@ -1185,7 +1319,7 @@
                 'Cyberpunk', 'Expressionist', 'Fire', 'Fireflies', 'Flow Fields',
                 'Fractal', 'Geometric', 'Glitch', 'Impressionist', 'Minimalist',
                 'Modern', 'Natural', 'Other-Worldly', 'Pixel', 'Realist',
-                'Space', 'Stained Glass', 'Surrealist', 'Vaporwave', 'Watercolor'
+                'Space', 'Stained Glass', 'Surrealist', 'Vaporwave', 'Watercolor', 'Words'
               ];
               const canvasStyles = ['Standard', 'Circular', 'Framed', 'Divided', 'Layered'];
               const style = p.random(styles);
@@ -1207,7 +1341,7 @@
                     let canvasHeight = 600;
                     if (window.innerWidth < 600) {
                       canvasWidth = window.innerWidth - 40;
-                      canvasHeight = canvasWidth;
+                      canvasHeight = canvasWidth; // Ensure square canvas
                     }
                     p.createCanvas(canvasWidth, canvasHeight);
                     p.noLoop();
@@ -1217,7 +1351,7 @@
                       'Cyberpunk', 'Expressionist', 'Fire', 'Fireflies', 'Flow Fields',
                       'Fractal', 'Geometric', 'Glitch', 'Impressionist', 'Minimalist',
                       'Modern', 'Natural', 'Other-Worldly', 'Pixel', 'Realist',
-                      'Space', 'Stained Glass', 'Surrealist', 'Vaporwave', 'Watercolor'
+                      'Space', 'Stained Glass', 'Surrealist', 'Vaporwave', 'Watercolor', 'Words'
                     ];
                     const canvasStyles = ['Standard', 'Circular', 'Framed', 'Divided', 'Layered'];
                     const style = p.random(styles);
@@ -1237,7 +1371,6 @@
       }
     }
 
-    // Form submission handler
     document.getElementById('art-form').addEventListener('submit', async (event) => {
       event.preventDefault();
       const blockNumber = document.getElementById('block-number').value.trim();
@@ -1245,14 +1378,12 @@
       const errorDiv = document.getElementById('form-error');
       errorDiv.textContent = '';
 
-      // Validate input
       if (!/^\d+$/.test(blockNumber)) {
         errorDiv.textContent = 'Please enter a valid block number (numeric only).';
         return;
       }
 
-      const maxBlockHeight = 900000; // Approximate as of May 2025
-      if (parseInt(blockNumber) > maxBlockHeight) {
+      if (parseInt(blockNumber) > 900000) {
         errorDiv.textContent = 'Block number is too high. Please enter a mined block number.';
         return;
       }
@@ -1266,37 +1397,17 @@
         const blockData = await fetchBlockData(blockNumber);
         const { randomizer, seed } = createRandomizer(blockData.blockHash, blockData.blockHeight);
 
-        // Remove existing main sketch
         if (mainSketch) {
           mainSketch.remove();
         }
 
-        // Create new main sketch with user input
         mainSketch = new p5((p) => {
           p.setup = () => {
             let canvasWidth = 600;
             let canvasHeight = 600;
             if (window.innerWidth < 600) {
               canvasWidth = window.innerWidth - 40;
-              canvasHeight = canvasWidth;
+              canvasHeight = canvasWidth; // Ensure square canvas
             }
             p.createCanvas(canvasWidth, canvasHeight);
             p.noLoop();
-            p.randomSeed(seed);
-            const canvasStyles = ['Standard', 'Circular', 'Framed', 'Divided', 'Layered'];
-            const canvasStyle = p.random(canvasStyles);
-            updateInfo(blockData.blockHash, blockData.blockHeight, randomizer, style);
-            setupCanvas(p, canvasStyle, blockData.blockHeight);
-            drawArt(p, blockData.blockHeight, style);
-          };
-        }, document.getElementById('main-canvas'));
-      } catch (error) {
-        console.error('Error generating custom artwork:', error);
-        errorDiv.textContent = 'Failed to fetch block data. Please try another block number.';
-      }
-    });
-
-    mainSketch = new p5(mainSketchSetup, document.getElementById('main-canvas'));
-  </script>
-</body>
-</html>
