@@ -166,7 +166,7 @@
   <div id="main-canvas"></div>
   <div id="previous-blocks"></div>
   <div id="description">
-    BlockRoss transforms Bitcoin's latest block data into unique art. Each piece is a digital interpretation of blockchain activity. The name is an homage to Bob Ross. While the artwork is randomly generated, it’s deterministic. Using the same block number and art style will always produce the identical piece.
+    BlockRoss transforms Bitcoin's latest block data into unique art. Each piece is a digital interpretation of blockchain activity. The name is an homage to Bob Ross. While the artwork is randomly generated, it's deterministic. Using the same block number and art style will always produce the identical piece.
     <a href="about.html">Learn more about this project</a>.
   </div>
   <div id="create-form-container">
@@ -188,6 +188,7 @@
         <option value="Geometric">Geometric</option>
         <option value="Glitch">Glitch</option>
         <option value="Impressionist">Impressionist</option>
+        <option value="Matrix">Matrix</option>
         <option value="Minimalist">Minimalist</option>
         <option value="Modern">Modern</option>
         <option value="Natural">Natural</option>
@@ -421,6 +422,7 @@
           case 'Aqua': drawAqua(p, heightFactor); break;
           case 'Fireflies': drawFireflies(p, heightFactor); break;
           case 'Flow Fields': drawFlowFields(p, heightFactor); break;
+          case 'Matrix': drawMatrix(p, heightFactor); break;
           default: drawModern(p, heightFactor);
         }
       } catch (error) {
@@ -1111,6 +1113,73 @@
           p.point(particle.x, particle.y);
         }
       }
+    }
+
+    function drawMatrix(p, heightFactor) {
+      // Matrix-style digital rain
+      p.background(0);
+      
+      // Characters
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      const fontSize = 12;
+      p.textSize(fontSize);
+      
+      // Create columns of falling characters
+      const columnCount = Math.floor(p.width / (fontSize * 0.6));
+      const columns = [];
+      
+      // Initialize columns with longer lengths and more spread out initial positions
+      for (let i = 0; i < columnCount; i++) {
+        columns.push({
+          x: i * fontSize * 0.6,
+          y: p.random(-p.height * 3, 0), // Start even higher up
+          speed: p.random(1, 2),
+          length: Math.floor(p.random(25, 35)) // Further increased column length
+        });
+      }
+      
+      // Draw and update columns
+      for (let col of columns) {
+        // Draw characters in column
+        for (let i = 0; i < col.length; i++) {
+          const y = col.y + i * fontSize;
+          if (y >= 0 && y < p.height) {
+            // Fade out characters based on position in column
+            const alpha = p.map(i, 0, col.length, 255, 20); // Further reduced minimum alpha
+            // Pure green with enhanced glow
+            p.fill(0, 255, 0, alpha);
+            const char = chars[Math.floor(p.random(chars.length))];
+            p.text(char, col.x, y);
+          }
+        }
+        
+        // Update column position
+        col.y += col.speed;
+        
+        // Reset column when it goes off screen
+        if (col.y > p.height) {
+          col.y = -col.length * fontSize;
+          col.length = Math.floor(p.random(25, 35)); // Keep the longer length on reset
+          col.speed = p.random(1, 2);
+        }
+      }
+      
+      // Enhanced glowing effects
+      p.drawingContext.shadowBlur = 8; // Increased blur for stronger glow
+      p.drawingContext.shadowColor = 'rgba(0, 255, 0, 0.7)'; // Increased glow intensity
+      
+      // Add some random bright spots with pure green
+      for (let i = 0; i < 3; i++) {
+        const x = p.random(p.width);
+        const y = p.random(p.height);
+        const size = p.random(2, 4);
+        p.fill(0, 255, 0, 200);
+        p.noStroke();
+        p.ellipse(x, y, size, size);
+      }
+      
+      // Reset shadow
+      p.drawingContext.shadowBlur = 0;
     }
 
     function mainSketchSetup(p) {
